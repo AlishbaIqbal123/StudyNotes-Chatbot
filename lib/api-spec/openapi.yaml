@@ -3,20 +3,34 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: AI Study Assistant API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: sessions
+    description: Study sessions / uploaded content
+  - name: notes
+    description: AI-generated notes
+  - name: quizzes
+    description: Quiz operations
+  - name: flashcards
+    description: Flashcard operations
+  - name: chat
+    description: AI chatbot
+  - name: dashboard
+    description: Dashboard summaries
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +38,311 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [sessions]
+      summary: List all study sessions
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+    post:
+      operationId: createSession
+      tags: [sessions]
+      summary: Create a new study session (upload content)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{id}:
+    get:
+      operationId: getSession
+      tags: [sessions]
+      summary: Get a study session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteSession
+      tags: [sessions]
+      summary: Delete a study session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: No content
+
+  /sessions/{id}/generate:
+    post:
+      operationId: generateContent
+      tags: [sessions]
+      summary: Trigger AI generation for a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{id}/notes:
+    get:
+      operationId: getNotes
+      tags: [notes]
+      summary: Get notes for a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notes"
+
+  /sessions/{id}/quiz:
+    get:
+      operationId: getQuiz
+      tags: [quizzes]
+      summary: Get quiz for a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+
+  /sessions/{id}/flashcards:
+    get:
+      operationId: getFlashcards
+      tags: [flashcards]
+      summary: Get flashcards for a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Flashcard"
+
+  /sessions/{id}/chat:
+    post:
+      operationId: sendChatMessage
+      tags: [chat]
+      summary: Send a chat message and get AI response
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+
+  /sessions/{id}/chat/history:
+    get:
+      operationId: getChatHistory
+      tags: [chat]
+      summary: Get chat history for a session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatMessage"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary statistics
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/recent:
+    get:
+      operationId: getRecentSessions
+      tags: [dashboard]
+      summary: Get recent study sessions
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +353,283 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - email
+        - createdAt
+
+    RegisterBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - name
+        - email
+        - password
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+      required:
+        - user
+        - token
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        title:
+          type: string
+        inputType:
+          type: string
+          enum: [text, youtube, file]
+        inputContent:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, ready, error]
+        subject:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        isSaved:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - userId
+        - title
+        - inputType
+        - inputContent
+        - status
+        - isSaved
+        - tags
+        - createdAt
+        - updatedAt
+
+    CreateSessionBody:
+      type: object
+      properties:
+        title:
+          type: string
+        inputType:
+          type: string
+          enum: [text, youtube, file]
+        inputContent:
+          type: string
+        subject:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - title
+        - inputType
+        - inputContent
+
+    Notes:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        summary:
+          type: string
+        detailedContent:
+          type: string
+        keyPoints:
+          type: array
+          items:
+            type: string
+        studyTips:
+          type: array
+          items:
+            type: string
+      required:
+        - sessionId
+        - summary
+        - detailedContent
+        - keyPoints
+        - studyTips
+
+    QuizQuestion:
+      type: object
+      properties:
+        id:
+          type: integer
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        correctIndex:
+          type: integer
+        explanation:
+          type: string
+      required:
+        - id
+        - question
+        - options
+        - correctIndex
+        - explanation
+
+    Quiz:
+      type: object
+      properties:
+        sessionId:
+          type: integer
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuizQuestion"
+      required:
+        - sessionId
+        - questions
+
+    Flashcard:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        front:
+          type: string
+        back:
+          type: string
+        order:
+          type: integer
+      required:
+        - id
+        - sessionId
+        - front
+        - back
+        - order
+
+    ChatMessageBody:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - sessionId
+        - role
+        - content
+        - createdAt
+
+    ChatResponse:
+      type: object
+      properties:
+        message:
+          $ref: "#/components/schemas/ChatMessage"
+      required:
+        - message
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalSessions:
+          type: integer
+        totalFlashcards:
+          type: integer
+        totalQuizzes:
+          type: integer
+        savedSessions:
+          type: integer
+        sessionsByStatus:
+          type: object
+          properties:
+            pending:
+              type: integer
+            processing:
+              type: integer
+            ready:
+              type: integer
+            error:
+              type: integer
+          required:
+            - pending
+            - processing
+            - ready
+            - error
+      required:
+        - totalSessions
+        - totalFlashcards
+        - totalQuizzes
+        - savedSessions
+        - sessionsByStatus

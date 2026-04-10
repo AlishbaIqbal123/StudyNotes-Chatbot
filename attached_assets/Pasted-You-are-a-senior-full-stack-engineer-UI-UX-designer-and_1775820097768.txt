@@ -1,0 +1,210 @@
+You are a senior full-stack engineer, UI/UX designer, and AI architect. Build a complete, production-ready AI-powered study assistant web app with authentication, multiple screens, and scalable architecture.
+
+🎯 PROJECT VISION
+
+Create a web app that feels like:
+👉 Pinterest + Notion + AI Study Assistant
+
+Users can upload:
+
+PDF / DOCX / PPT
+YouTube/video lecture links
+Raw text notes
+
+And get:
+
+Simplified notes (easy wording)
+Quizzes
+Flashcards
+Podcast/audio summaries
+Visual explanations
+AI chatbot assistant (context-aware)
+🔐 AUTHENTICATION SYSTEM (IMPORTANT)
+
+Implement full authentication:
+
+Features:
+Login / Signup
+JWT-based authentication
+Secure password hashing (bcrypt)
+Session handling
+Protected routes
+Screens:
+Login Page
+Signup Page
+Forgot Password (optional but preferred)
+Extra:
+Google OAuth (if possible with free tier)
+Form validation (frontend + backend)
+Error handling (user-friendly messages)
+🧭 FULL SCREEN FLOW (VERY IMPORTANT)
+🏠 1. Landing Page
+Hero section (clear value)
+Features showcase
+CTA buttons (Get Started, Login)
+Aesthetic Pinterest-style layout
+🔑 2. Authentication Screens
+Login Page
+Email + Password
+Remember me
+Link to signup
+Signup Page
+Name, Email, Password
+Confirm password
+Terms checkbox
+📊 3. User Dashboard
+Welcome message
+Recent uploads
+Quick actions:
+Upload file
+Paste link
+Create notes manually
+Cards layout (Pinterest style)
+📤 4. Upload / Input Screen
+Upload files (PDF, DOCX, PPT)
+Paste YouTube/video link
+Paste raw notes
+Drag & Drop UI
+Progress loader
+⚙️ 5. Processing Screen
+Loading animation (important UX)
+Steps shown:
+Extracting content
+Simplifying notes
+Generating quiz
+Creating flashcards
+📘 6. Notes Viewer (MAIN SCREEN)
+Layout:
+Left: Notes content
+Right: Chatbot sidebar
+Notes Features:
+Clean structured notes
+Headings, bullets
+Highlight important points
+Image placeholders/visual explanations
+Toggle:
+Summary view
+Detailed view
+🧠 7. Quiz Screen
+MCQs + answers
+Interactive quiz mode
+Score tracking
+🧾 8. Flashcards Screen
+Flip animation cards
+Next/previous navigation
+Shuffle option
+🎧 9. Podcast Screen
+Audio player UI
+Play/pause
+Transcript view
+💬 10. Chatbot Sidebar (GLOBAL)
+Behavior:
+Always visible in Notes screen
+Answers ONLY from notes context
+If unrelated:
+"Please ask questions related to the provided notes."
+Tech:
+RAG (Retrieval Augmented Generation)
+Web search fallback (Google/SerpAPI)
+👤 11. Profile Page
+User info
+Uploaded files history
+Settings
+⚙️ 12. Settings Page
+Dark/Light mode toggle
+Delete account
+Export data
+⭐ 13. Saved / Library Screen
+All generated notes
+Search + filter
+Grid layout (Pinterest style)
+🎨 UI/UX DESIGN (CRITICAL)
+Pinterest-inspired UI
+Card-based layout
+Soft pastel gradients
+Rounded corners (2xl)
+Smooth animations (Framer Motion)
+Themes:
+Light theme (clean + airy)
+Dark theme (card-based aesthetic)
+⚙️ CORE FEATURES
+📄 File Processing
+PDF → pdfplumber
+DOCX → mammoth
+PPT → python-pptx
+YouTube → transcript API
+🤖 AI GENERATION
+Notes:
+Very simple wording (student-friendly)
+Examples included
+Bullet points
+Highlight keywords
+Quiz:
+MCQs + answers
+Difficulty levels
+Flashcards:
+Q/A format
+Podcast:
+Conversational script + TTS
+🖼️ Visual Explanation
+Detect complex topics
+Generate diagrams/images (Stable Diffusion free APIs)
+💡 Suggestion Engine
+Study tips
+Related topics
+Improvement suggestions
+🧠 FREE AI MODELS (MANDATORY)
+
+Create file:
+📄 AI_MODELS_GUIDE.md
+
+Include:
+
+Text:
+Mixtral (OpenRouter)
+LLaMA 3 (free tiers)
+Embeddings:
+BGE-small / MiniLM
+Audio:
+Coqui TTS / Browser Speech API
+Image:
+Stable Diffusion
+Explain:
+Why chosen
+How to integrate
+Cost = FREE
+🏗️ TECH STACK
+Frontend:
+Next.js (App Router)
+Tailwind CSS
+Framer Motion
+Backend:
+Node.js (Express) OR FastAPI
+Database:
+MongoDB (recommended)
+Auth:
+JWT + bcrypt
+AI:
+OpenRouter
+LangChain (optional)
+📱 PWA FEATURES
+Installable app
+Offline saved notes
+Service worker caching
+📂 OUTPUT REQUIREMENTS
+
+Generate:
+
+Full project code (frontend + backend)
+Folder structure
+README.md
+AI_MODELS_GUIDE.md
+API documentation
+Deployment guide (Vercel + Render)
+🔒 CONSTRAINTS
+Use ONLY free APIs/models
+Clean, modular code
+Mobile-first responsive design
+🎯 FINAL GOAL
+
+Aesthetic + powerful + student-friendly AI learning platform that feels modern, smooth, and intelligent.
