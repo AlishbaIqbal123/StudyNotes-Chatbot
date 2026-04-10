@@ -1,17 +1,20 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useCreateSession, useGenerateContent } from "@workspace/api-client-react";
 import type { CreateSessionBodyInputType } from "@workspace/api-client-react";
+import { useAuth } from "@/lib/auth";
+import { hasUsedGuest, setGuestSessionId, guestCreateSession, guestGenerate } from "@/lib/guest";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Youtube, AlignLeft, Sparkles, Loader2 } from "lucide-react";
+import { FileText, Youtube, AlignLeft, Sparkles, Loader2, Lock, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function Upload() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
   const { toast } = useToast();
   
   const [activeTab, setActiveTab] = useState<CreateSessionBodyInputType>("text");
@@ -21,6 +24,8 @@ export function Upload() {
 
   const createSession = useCreateSession();
   const generateContent = useGenerateContent();
+
+  const guestAlreadyUsed = !user && hasUsedGuest();
 
   const handleProcess = async () => {
     if (!title.trim()) {
@@ -34,22 +39,20 @@ export function Upload() {
 
     setIsProcessing(true);
     try {
-      const session = await createSession.mutateAsync({
-        data: {
-          title,
-          inputType: activeTab,
-          inputContent: content,
-        }
-      });
-
-      await generateContent.mutateAsync({ id: session.id });
-
-      toast({
-        title: "Session created!",
-        description: "We are generating your study materials.",
-      });
-      
-      setLocation(`/sessions/${session.id}`);
+      if (user) {
+        const session = await createSession.mutateAsync({
+          data: { title, inputType: activeTab, inputContent: content }
+        });
+        await generateContent.mutateAsync({ id: session.id });
+        toast({ title: "Session created!", description: "We are generating your study materials." });
+        setLocation(`/sessions/${session.id}`);
+      } else {
+        const session = await guestCreateSession({ title, inputType: activeTab, inputContent: content });
+        setGuestSessionId(session.id);
+        await guestGenerate(session.id);
+        toast({ title: "Session created!", description: "Your free trial session is ready." });
+        setLocation(`/sessions/${session.id}`);
+      }
     } catch (error: any) {
       toast({
         title: "Failed to create session",
@@ -66,9 +69,48 @@ export function Upload() {
     { id: "file", label: "Document", icon: FileText }
   ] as const;
 
+  if (guestAlreadyUsed) {
+    return (
+      <div className="max-w-2xl mx-auto w-full px-4 py-20 flex flex-col items-center text-center relative">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-xl h-64 bg-primary/10 rounded-[100%] blur-[100px] -z-10" />
+        
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="space-y-8">
+          <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center mx-auto shadow-xl border border-primary/20">
+            <Lock className="h-12 w-12 text-primary" />
+          </div>
+
+          <div className="space-y-3">
+            <h1 className="text-4xl font-black tracking-tight">You've used your free trial</h1>
+            <p className="text-muted-foreground text-lg font-medium max-w-md mx-auto leading-relaxed">
+              You already created one free study session. Create a free account to unlock unlimited sessions, flashcards, quizzes, and more.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/signup">
+              <Button size="lg" className="rounded-full px-10 text-lg h-14 shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-1 transition-all w-full sm:w-auto">
+                <Sparkles className="w-5 h-5 mr-2" />
+                Create free account
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button size="lg" variant="outline" className="rounded-full px-10 text-lg h-14 w-full sm:w-auto">
+                Log in
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            </Link>
+          </div>
+
+          <p className="text-sm text-muted-foreground">
+            Free forever — no credit card required.
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto w-full px-4 py-12 md:py-20 relative">
-      {/* Background decoration */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-2xl h-64 bg-primary/10 rounded-[100%] blur-[100px] -z-10" />
 
       <div className="text-center mb-12 relative z-10">
@@ -78,6 +120,16 @@ export function Upload() {
         <p className="text-muted-foreground text-lg max-w-xl mx-auto font-medium">
           Upload your notes, paste a link, or drop a document. We'll turn it into an interactive learning experience.
         </p>
+        {!user && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-semibold"
+          >
+            <Sparkles className="w-4 h-4" />
+            Try it free — no account needed for your first session
+          </motion.div>
+        )}
       </div>
 
       <div className="space-y-10 relative z-10">
@@ -94,7 +146,6 @@ export function Upload() {
         </div>
 
         <div className="bg-card border border-border/50 shadow-xl rounded-[2rem] overflow-hidden">
-          {/* Custom Tabs */}
           <div className="flex p-2 bg-muted/30 border-b border-border/50 overflow-x-auto no-scrollbar">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -124,7 +175,6 @@ export function Upload() {
             })}
           </div>
 
-          {/* Content Area */}
           <div className="relative min-h-[350px] flex flex-col bg-background">
             <AnimatePresence mode="wait">
               {isProcessing && (
@@ -204,7 +254,7 @@ export function Upload() {
           </div>
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-4">
           <Button 
             size="lg" 
             className="rounded-full px-12 text-lg h-16 shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-1 transition-all"
@@ -214,6 +264,15 @@ export function Upload() {
             <Sparkles className="w-6 h-6 mr-3" />
             Generate Magic
           </Button>
+          {!user && (
+            <p className="text-sm text-muted-foreground">
+              This is your free trial session.{" "}
+              <Link href="/signup" className="text-primary font-semibold hover:underline">
+                Create an account
+              </Link>{" "}
+              to save unlimited sessions.
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -1,9 +1,10 @@
-import { useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { useGetSession } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
+import { isGuestSession, guestGetSession } from "@/lib/guest";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft, BookOpen, Brain, Zap, Clock, CheckCircle, AlertCircle, FileText, Youtube } from "lucide-react";
+import { ArrowLeft, BookOpen, Brain, Zap, Clock, CheckCircle, AlertCircle, FileText, Youtube, Sparkles } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -11,19 +12,32 @@ import { format } from "date-fns";
 export function SessionOverview() {
   const [, params] = useRoute("/sessions/:id");
   const sessionId = params?.id ? parseInt(params.id) : 0;
+  const isGuest = isGuestSession(sessionId);
 
-  const { data: session, isLoading } = useGetSession(sessionId, {
+  const { data: authSession, isLoading: authLoading } = useGetSession(sessionId, {
     query: {
-      enabled: !!sessionId,
+      enabled: !!sessionId && !isGuest,
       refetchInterval: (query) => {
-        const currentSession = query.state.data;
-        if (currentSession && (currentSession.status === 'pending' || currentSession.status === 'processing')) {
-          return 3000;
-        }
+        const s = query.state.data;
+        if (s && (s.status === 'pending' || s.status === 'processing')) return 3000;
         return false;
       }
     }
   });
+
+  const { data: guestSession, isLoading: guestLoading } = useQuery({
+    queryKey: ["guest-session", sessionId],
+    queryFn: () => guestGetSession(sessionId),
+    enabled: !!sessionId && isGuest,
+    refetchInterval: (query) => {
+      const s = query.state.data;
+      if (s && (s.status === 'pending' || s.status === 'processing')) return 3000;
+      return false;
+    }
+  });
+
+  const session = isGuest ? guestSession : authSession;
+  const isLoading = isGuest ? guestLoading : authLoading;
 
   if (isLoading) {
     return (
@@ -74,12 +88,31 @@ export function SessionOverview() {
     <div className="max-w-6xl mx-auto w-full px-4 py-12 space-y-12 relative">
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -z-10 pointer-events-none" />
 
-      {/* Header */}
+      {isGuest && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between gap-4 px-6 py-4 rounded-2xl bg-primary/10 border border-primary/20"
+        >
+          <div className="flex items-center gap-3">
+            <Sparkles className="h-5 w-5 text-primary flex-shrink-0" />
+            <p className="text-sm font-semibold text-foreground">
+              You're in your free trial session. Create a free account to save this and unlock unlimited sessions.
+            </p>
+          </div>
+          <Link href="/signup">
+            <Button size="sm" className="rounded-full flex-shrink-0">
+              Sign up free
+            </Button>
+          </Link>
+        </motion.div>
+      )}
+
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        <Link href="/dashboard">
+        <Link href={isGuest ? "/" : "/dashboard"}>
           <Button variant="ghost" className="rounded-full hover:bg-muted font-medium pl-2">
             <ArrowLeft className="mr-2 h-5 w-5" />
-            Back to Dashboard
+            {isGuest ? "Back to Home" : "Back to Dashboard"}
           </Button>
         </Link>
         

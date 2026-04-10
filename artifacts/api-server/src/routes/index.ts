@@ -7,11 +7,13 @@ import quizRouter from "./quiz";
 import flashcardsRouter from "./flashcards";
 import chatRouter from "./chat";
 import dashboardRouter from "./dashboard";
+import guestRouter from "./guest";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(guestRouter);
 router.use(sessionsRouter);
 router.use(notesRouter);
 router.use(quizRouter);

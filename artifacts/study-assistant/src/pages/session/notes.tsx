@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { useGetSession, useGetNotes, useGetChatHistory, useSendChatMessage } from "@workspace/api-client-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { isGuestSession, guestGetSession, guestGetNotes, guestGetChatHistory, guestSendChat } from "@/lib/guest";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Sparkles, Send, Bot, Loader2, Quote } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,36 +13,51 @@ import { motion, AnimatePresence } from "framer-motion";
 export function SessionNotes() {
   const [, params] = useRoute("/sessions/:id/notes");
   const sessionId = params?.id ? parseInt(params.id) : 0;
+  const isGuest = isGuestSession(sessionId);
+  const queryClient = useQueryClient();
   
   const [chatMessage, setChatMessage] = useState("");
   const [activeTab, setActiveTab] = useState<"summary" | "detailed">("summary");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { data: session, isLoading: sessionLoading } = useGetSession(sessionId, { query: { enabled: !!sessionId } });
-  const { data: notes, isLoading: notesLoading } = useGetNotes(sessionId, { query: { enabled: !!sessionId } });
-  const { data: chatHistory, refetch: refetchChat } = useGetChatHistory(sessionId, { query: { enabled: !!sessionId } });
-  
+  const { data: authSession, isLoading: authSessionLoading } = useGetSession(sessionId, { query: { enabled: !!sessionId && !isGuest } });
+  const { data: authNotes, isLoading: authNotesLoading } = useGetNotes(sessionId, { query: { enabled: !!sessionId && !isGuest } });
+  const { data: authChatHistory, refetch: refetchAuthChat } = useGetChatHistory(sessionId, { query: { enabled: !!sessionId && !isGuest } });
   const sendChatMessage = useSendChatMessage();
+
+  const { data: guestSession, isLoading: guestSessionLoading } = useQuery({ queryKey: ["guest-session", sessionId], queryFn: () => guestGetSession(sessionId), enabled: !!sessionId && isGuest });
+  const { data: guestNotes, isLoading: guestNotesLoading } = useQuery({ queryKey: ["guest-notes", sessionId], queryFn: () => guestGetNotes(sessionId), enabled: !!sessionId && isGuest });
+  const { data: guestChatHistory, refetch: refetchGuestChat } = useQuery({ queryKey: ["guest-chat", sessionId], queryFn: () => guestGetChatHistory(sessionId), enabled: !!sessionId && isGuest });
+  const guestSendChatMutation = useMutation({
+    mutationFn: (message: string) => guestSendChat(sessionId, message),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["guest-chat", sessionId] }),
+  });
+
+  const session = isGuest ? guestSession : authSession;
+  const notes = isGuest ? guestNotes : authNotes;
+  const chatHistory = isGuest ? guestChatHistory : authChatHistory;
+  const isChatPending = isGuest ? guestSendChatMutation.isPending : sendChatMessage.isPending;
+  const sessionLoading = isGuest ? guestSessionLoading : authSessionLoading;
+  const notesLoading = isGuest ? guestNotesLoading : authNotesLoading;
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [chatHistory, sendChatMessage.isPending]);
+  }, [chatHistory, isChatPending]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatMessage.trim()) return;
-    
     const message = chatMessage;
     setChatMessage("");
-    
-    await sendChatMessage.mutateAsync({
-      id: sessionId,
-      data: { message }
-    });
-    
-    refetchChat();
+    if (isGuest) {
+      await guestSendChatMutation.mutateAsync(message);
+      refetchGuestChat();
+    } else {
+      await sendChatMessage.mutateAsync({ id: sessionId, data: { message } });
+      refetchAuthChat();
+    }
   };
 
   if (sessionLoading || notesLoading) {
@@ -223,7 +240,7 @@ export function SessionNotes() {
             </div>
           ))}
           
-          {sendChatMessage.isPending && (
+          {isChatPending && (
              <div className="flex gap-3">
                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-white shrink-0 mt-1 shadow-sm">
                  <Bot className="w-4 h-4" />
