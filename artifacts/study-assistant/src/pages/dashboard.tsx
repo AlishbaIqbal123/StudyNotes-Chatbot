@@ -3,9 +3,9 @@ import { Link, useLocation } from "wouter";
 import { useEffect } from "react";
 import { useGetDashboardSummary, useGetRecentSessions } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, BookOpen, Layers, Zap, ArrowRight, FileText, Youtube, Clock, CheckCircle } from "lucide-react";
+import { Plus, BookOpen, Layers, Zap, ArrowRight, FileText, Youtube, Brain, Sparkles, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 
@@ -28,87 +28,143 @@ export function Dashboard() {
   });
 
   if (userLoading || !user) {
-    return <div className="p-8">Loading...</div>;
+    return (
+      <div className="max-w-7xl mx-auto p-8 space-y-8 w-full">
+        <Skeleton className="h-12 w-64 rounded-xl" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+        </div>
+      </div>
+    );
   }
 
   const getIconForType = (type: string) => {
     switch(type) {
-      case 'youtube': return <Youtube className="h-5 w-5 text-red-500" />;
-      case 'file': return <FileText className="h-5 w-5 text-blue-500" />;
-      default: return <BookOpen className="h-5 w-5 text-primary" />;
+      case 'youtube': return <Youtube className="h-6 w-6 text-red-500" />;
+      case 'file': return <FileText className="h-6 w-6 text-blue-500" />;
+      default: return <BookOpen className="h-6 w-6 text-primary" />;
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch(status) {
-      case 'ready': 
-        return <span className="inline-flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full"><CheckCircle className="mr-1 h-3 w-3" /> Ready</span>;
-      case 'processing': 
-      case 'pending': 
-        return <span className="inline-flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full"><Clock className="mr-1 h-3 w-3" /> Processing</span>;
-      default: 
-        return <span className="inline-flex items-center text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-full">{status}</span>;
+  const getCardGradient = (type: string) => {
+    switch(type) {
+      case 'youtube': return "from-red-500/10 to-transparent border-red-500/20 hover:border-red-500/50";
+      case 'file': return "from-blue-500/10 to-transparent border-blue-500/20 hover:border-blue-500/50";
+      default: return "from-primary/10 to-transparent border-primary/20 hover:border-primary/50";
     }
   };
 
   return (
-    <div className="max-w-7xl mx-auto w-full px-4 md:px-8 py-8 space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="max-w-7xl mx-auto w-full px-4 md:px-8 py-8 md:py-12 space-y-12">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Hi, {user.name?.split(' ')[0]} 👋</h1>
-          <p className="text-muted-foreground mt-1">Ready to learn something new today?</p>
+          <motion.h1 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-3xl md:text-4xl font-bold tracking-tight relative inline-block"
+          >
+            Hi, {user.name?.split(' ')[0]} 👋
+            <span className="absolute bottom-0 left-0 w-full h-1.5 bg-primary/20 rounded-full" />
+          </motion.h1>
+          <motion.p 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-lg text-muted-foreground mt-2"
+          >
+            Ready to master something new today?
+          </motion.p>
         </div>
-        <Link href="/upload">
-          <Button size="lg" className="rounded-full px-6 shadow-md shadow-primary/20 transition-transform hover:scale-105">
-            <Plus className="mr-2 h-5 w-5" />
-            New Study Session
-          </Button>
-        </Link>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Link href="/upload">
+            <Button size="lg" className="rounded-full px-8 h-14 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all hover:-translate-y-0.5 w-full md:w-auto">
+              <Plus className="mr-2 h-5 w-5" />
+              New Session
+            </Button>
+          </Link>
+        </motion.div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-gradient-to-br from-card to-primary/5 border-none shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Sessions</CardTitle>
-            <Layers className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            {summaryLoading ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-3xl font-bold text-foreground">{summary?.totalSessions || 0}</div>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-card to-amber-500/5 border-none shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Flashcards Mastered</CardTitle>
-            <Zap className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            {summaryLoading ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-3xl font-bold text-foreground">{summary?.totalFlashcards || 0}</div>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-card to-blue-500/5 border-none shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Quizzes Taken</CardTitle>
-            <Brain className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            {summaryLoading ? <Skeleton className="h-8 w-16" /> : (
-              <div className="text-3xl font-bold text-foreground">{summary?.totalQuizzes || 0}</div>
-            )}
-          </CardContent>
-        </Card>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <Card className="glass border-none shadow-sm relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
+            <CardContent className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-primary/10 rounded-2xl">
+                  <Layers className="h-6 w-6 text-primary" />
+                </div>
+                <span className="flex items-center text-xs font-semibold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">
+                  <TrendingUp className="w-3 h-3 mr-1" /> +12%
+                </span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total Sessions</p>
+                {summaryLoading ? <Skeleton className="h-10 w-20" /> : (
+                  <p className="text-4xl font-bold tracking-tight text-foreground">{summary?.totalSessions || 0}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <Card className="glass border-none shadow-sm relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent pointer-events-none" />
+            <CardContent className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-amber-500/10 rounded-2xl">
+                  <Zap className="h-6 w-6 text-amber-500" />
+                </div>
+                <span className="flex items-center text-xs font-semibold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">
+                  <TrendingUp className="w-3 h-3 mr-1" /> +5%
+                </span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Flashcards Mastered</p>
+                {summaryLoading ? <Skeleton className="h-10 w-20" /> : (
+                  <p className="text-4xl font-bold tracking-tight text-foreground">{summary?.totalFlashcards || 0}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <Card className="glass border-none shadow-sm relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none" />
+            <CardContent className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-blue-500/10 rounded-2xl">
+                  <Brain className="h-6 w-6 text-blue-500" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Quizzes Taken</p>
+                {summaryLoading ? <Skeleton className="h-10 w-20" /> : (
+                  <p className="text-4xl font-bold tracking-tight text-foreground">{summary?.totalQuizzes || 0}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
-      <div className="space-y-4">
+      {/* Recent Sessions */}
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold tracking-tight">Recent Sessions</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Continue Learning</h2>
           <Link href="/library">
-            <Button variant="ghost" size="sm" className="text-primary">
-              View all <ArrowRight className="ml-1 h-4 w-4" />
+            <Button variant="ghost" className="text-primary font-semibold hover:bg-primary/10">
+              View Library <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </Link>
         </div>
@@ -116,18 +172,29 @@ export function Dashboard() {
         {sessionsLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(3)].map((_, i) => (
-              <Skeleton key={i} className="h-48 w-full rounded-2xl" />
+              <Skeleton key={i} className="h-[280px] w-full rounded-[2rem]" />
             ))}
           </div>
         ) : recentSessions?.length === 0 ? (
-          <div className="text-center py-16 bg-muted/30 rounded-3xl border border-dashed">
-            <BookOpen className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-medium text-foreground">No sessions yet</h3>
-            <p className="text-muted-foreground mt-1 mb-6">Upload a document or paste a link to get started.</p>
-            <Link href="/upload">
-              <Button>Create your first session</Button>
-            </Link>
-          </div>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-20 bg-muted/20 border border-border/50 rounded-[2.5rem] relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-mesh opacity-50" />
+            <div className="relative z-10">
+              <div className="w-20 h-20 bg-background shadow-lg rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <Sparkles className="h-10 w-10 text-primary" />
+              </div>
+              <h3 className="text-2xl font-bold text-foreground mb-2">No sessions yet</h3>
+              <p className="text-muted-foreground mb-8 max-w-md mx-auto">Upload a document, paste a link, or enter text to generate your first interactive study session.</p>
+              <Link href="/upload">
+                <Button size="lg" className="rounded-full px-8 h-14 text-base font-semibold">
+                  Create First Session
+                </Button>
+              </Link>
+            </div>
+          </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {recentSessions?.map((session, i) => (
@@ -138,23 +205,32 @@ export function Dashboard() {
                 transition={{ duration: 0.4, delay: i * 0.1 }}
               >
                 <Link href={`/sessions/${session.id}`}>
-                  <Card className="h-full overflow-hidden border hover:border-primary/50 hover:shadow-md transition-all cursor-pointer flex flex-col group">
-                    <CardHeader className="pb-3 bg-muted/20">
-                      <div className="flex justify-between items-start">
-                        <div className="p-2 bg-background rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                  <Card className={`h-[280px] border-2 bg-card overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer flex flex-col bg-gradient-to-b ${getCardGradient(session.inputType)}`}>
+                    <CardHeader className="pb-4 pt-6 px-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 bg-background rounded-2xl shadow-sm">
                           {getIconForType(session.inputType)}
                         </div>
-                        {getStatusBadge(session.status)}
+                        {session.status === 'ready' ? (
+                          <span className="text-xs font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 px-3 py-1.5 rounded-full">Ready</span>
+                        ) : (
+                          <span className="text-xs font-bold uppercase tracking-wider text-amber-500 bg-amber-500/10 px-3 py-1.5 rounded-full animate-pulse">Processing</span>
+                        )}
                       </div>
-                      <CardTitle className="text-lg mt-4 line-clamp-1">{session.title}</CardTitle>
-                      <CardDescription className="text-xs">
-                        {format(new Date(session.createdAt), 'MMM d, yyyy')}
-                      </CardDescription>
+                      <CardTitle className="text-xl line-clamp-2 leading-tight">{session.title}</CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-4 flex-1 flex flex-col">
-                      <div className="flex flex-wrap gap-2 mt-auto">
+                    <CardContent className="px-6 pb-6 mt-auto flex flex-col gap-4">
+                      {session.status === 'processing' && (
+                        <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-primary w-2/3 animate-pulse rounded-full" />
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between mt-auto">
+                        <CardDescription className="text-xs font-medium uppercase tracking-wider">
+                          {format(new Date(session.createdAt), 'MMM d, yyyy')}
+                        </CardDescription>
                         {session.subject && (
-                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-md font-medium">
+                          <span className="text-xs bg-background shadow-sm border px-2.5 py-1 rounded-md font-medium text-foreground">
                             {session.subject}
                           </span>
                         )}
@@ -169,32 +245,4 @@ export function Dashboard() {
       </div>
     </div>
   );
-}
-
-// Needed a Brain icon for the stats
-function Brain(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
-      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
-      <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
-      <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
-      <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
-      <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
-      <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
-      <path d="M6 18a4 4 0 0 1-1.967-.516" />
-      <path d="M19.967 17.484A4 4 0 0 1 18 18" />
-    </svg>
-  )
 }
