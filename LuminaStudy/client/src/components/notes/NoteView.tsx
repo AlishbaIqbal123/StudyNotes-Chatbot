@@ -3,25 +3,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft,
-  MessageSquare,
-  Sparkles,
   BookOpen,
-  Brain,
-  Zap,
-  Mic,
-  Send,
-  Bot,
-  Layers,
-  X,
   ChevronRight,
   BrainCircuit,
-  Volume2,
-  VolumeX,
-  CheckCircle,
-  XCircle,
+  Zap,
+  Layers,
+  Mic,
+  MessageSquare,
   Share2,
   Download,
+  CheckCircle,
+  XCircle,
+  Volume2,
+  VolumeX,
+  Bot,
+  Send,
+  Brain,
+  X,
+  Sparkles,
   RotateCcw,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -221,12 +220,12 @@ export default function NoteView({ id }: { id: string }) {
   }
 
   const tabs = [
-    { id: 'notes', label: 'Journal', icon: BookOpen, color: 'var(--primary)' },
-    { id: 'roadmap', label: 'Roadmap', icon: ChevronRight, color: '#C8552A' },
-    { id: 'mindmap', label: 'Mind Map', icon: BrainCircuit, color: '#5E7B5A' },
-    { id: 'quiz', label: 'Evaluation', icon: Zap, color: '#5E7B5A' },
-    { id: 'flashcards', label: 'Memory', icon: Layers, color: '#3B9BC8' },
-    { id: 'podcast', label: 'Auditory', icon: Mic, color: '#7C6FCD' },
+    { id: 'notes', label: 'Journal', icon: BookOpen },
+    { id: 'roadmap', label: 'Roadmap', icon: ChevronRight },
+    { id: 'mindmap', label: 'Mind Map', icon: BrainCircuit },
+    { id: 'quiz', label: 'Evaluation', icon: Zap },
+    { id: 'flashcards', label: 'Memory', icon: Layers },
+    { id: 'podcast', label: 'Auditory', icon: Mic },
   ] as const;
 
   const palettes = [
@@ -237,17 +236,17 @@ export default function NoteView({ id }: { id: string }) {
   ];
 
   return (
-    <div className="relative min-h-[80vh] bg-transparent text-[#160E0C]">
+    <div className="relative min-h-screen bg-[#FFF8F5] text-[#160E0C]">
       
       {/* ── ATELIER CONTROL BAR ── */}
-      <div className="sticky top-0 z-30 mb-8 py-4 bg-studio-bg/60 backdrop-blur-xl border-b border-[#160E0C10] -mx-4 px-4 md:-mx-8 md:px-8 lg:-mx-16 lg:px-16">
+      <div className="sticky top-0 z-30 mb-8 py-4 bg-[#FFF8F5]/80 backdrop-blur-xl border-b border-[#160E0C10] -mx-4 px-4 md:-mx-8 md:px-8 lg:-mx-16 lg:px-16">
          <div className="flex items-center justify-between gap-4 overflow-x-auto no-scrollbar py-1">
             <div className="flex items-center bg-white/40 p-1.5 rounded-2xl border border-white">
                {tabs.map((tab) => (
                  <button 
                    key={tab.id}
                    onClick={() => setActiveTab(tab.id)}
-                   className={`relative px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'text-primary' : 'text-zinc-400 hover:text-zinc-600'}`}
+                   className={`relative px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'text-primary' : 'text-zinc-500 hover:text-primary'}`}
                  >
                     <div className="relative z-10 flex items-center gap-2">
                        <tab.icon className="w-3.5 h-3.5" />
@@ -263,7 +262,7 @@ export default function NoteView({ id }: { id: string }) {
             <div className="flex items-center gap-2">
                <button 
                   onClick={() => setShowChat(!showChat)}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl border transition-all ${showChat ? 'bg-primary border-primary text-white shadow-lg' : 'bg-white border-white text-zinc-500'}`}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl border transition-all ${showChat ? 'bg-primary border-primary text-white shadow-lg' : 'bg-white border-white text-zinc-500 hover:border-primary/20'}`}
                >
                   <MessageSquare className="w-4 h-4" />
                   <span className="text-[10px] font-black uppercase tracking-widest hidden md:inline">Interrogate</span>
@@ -275,21 +274,18 @@ export default function NoteView({ id }: { id: string }) {
       <div className="flex flex-col lg:flex-row gap-8">
         
         {/* ── MAIN VIEWPORT AREA ── */}
-        <div className={`flex-1 transition-all duration-500`}>
+        <div className="flex-1 min-w-0">
           
             {/* HERO COVER */}
-            <section className="relative h-[250px] lg:h-[400px] group overflow-hidden rounded-[3rem] shadow-2xl bg-sidebar-bg mb-12">
+            <section className="relative h-[250px] lg:h-[400px] overflow-hidden rounded-[3rem] shadow-2xl bg-[#2D2D2D] mb-12">
                <div className="absolute inset-0 bg-black/30 z-10" />
                <img 
                  src={`https://pollinations.ai/p/${encodeURIComponent(note.visual_prompt || note.title || "academic study atmosphere")}?width=1920&height=1080&model=flux&nologo=true&seed=${id.length}`} 
-                 className="w-full h-full object-cover scale-[1.02] group-hover:scale-100 transition-transform duration-[3000ms]"
+                 className="w-full h-full object-cover"
                  alt={note.title}
                  loading="lazy"
-                 onError={(e) => {
-                   (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=1920&auto=format&fit=crop';
-                 }}
                />
-               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-20 pointer-events-none" />
+               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-20" />
                
                <div className="absolute bottom-10 left-8 lg:left-12 right-8 z-30">
                   <motion.div 
@@ -319,348 +315,231 @@ export default function NoteView({ id }: { id: string }) {
                    exit={{ opacity: 0, scale: 0.98 }}
                    transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                  >
-                     
-                     {/* TAB HEADER */}
-                     <div className="mb-12 flex items-center justify-between">
-                        <div>
-                           <div className="flex items-center gap-2 mb-2">
-                              <div className="w-6 h-[2px] bg-primary" />
-                              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                                 Digital Archive / {activeTab}
-                              </span>
-                           </div>
-                           <h2 className="text-3xl lg:text-5xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
-                              {tabs.find(t => t.id === activeTab)?.label} <span className="italic">Exhibit</span>
-                           </h2>
-                        </div>
-                        
-                        <div className="flex gap-2">
-                           <button className="w-12 h-12 rounded-full border border-muted flex items-center justify-center hover:bg-muted transition-colors"><Share2 className="w-5 h-5" /></button>
-                           <button className="w-12 h-12 rounded-full border border-muted flex items-center justify-center hover:bg-muted transition-colors"><Download className="w-5 h-5" /></button>
-                        </div>
-                     </div>
+                      <div className="mb-12 flex items-center justify-between">
+                         <div>
+                            <div className="flex items-center gap-2 mb-2">
+                               <div className="w-6 h-[2px] bg-primary" />
+                               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">
+                                  Digital Archive / {activeTab}
+                               </span>
+                            </div>
+                            <h2 className="text-3xl lg:text-5xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+                               {tabs.find(t => t.id === activeTab)?.label} <span className="italic text-primary">Exhibit</span>
+                            </h2>
+                         </div>
+                         
+                         <div className="flex gap-2">
+                            <button className="w-12 h-12 rounded-full border border-black/5 flex items-center justify-center hover:bg-white transition-colors"><Share2 className="w-5 h-5" /></button>
+                            <button className="w-12 h-12 rounded-full border border-black/5 flex items-center justify-center hover:bg-white transition-colors"><Download className="w-5 h-5" /></button>
+                         </div>
+                      </div>
 
-                     {/*TAB: NOTES */}
-                     {activeTab === 'notes' && (
-                        <div className="glass-card p-8 lg:p-16 rounded-[3rem] shadow-[0_48px_96px_-32px_rgba(0,0,0,0.1)] relative overflow-hidden group">
-                           <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] -z-1 pointer-events-none group-hover:scale-110 transition-transform duration-[3000ms]" />
-                           <div className="lumina-prose relative z-10 max-w-none">
-                              <ReactMarkdown
-                                components={{
-                                  code({ node, inline, className, children, ...props }: any) {
-                                    const match = /language-mermaid/.exec(className || '');
-                                    return !inline && match ? (
-                                      <Mermaid chart={String(children).replace(/\n$/, '')} />
-                                    ) : (
-                                      <code className={className} {...props}>
-                                        {children}
-                                      </code>
-                                    );
-                                  },
-                                  img({ node, ...props }: any) {
-                                    return (
-                                      <div className="my-16 flex flex-col items-center">
-                                        <div className="p-1 rounded-[2.5rem] bg-white shadow-2xl overflow-hidden border border-black/5 group/img">
-                                           <img {...props} className="w-full h-auto rounded-[2.2rem] scale-[1.01] group-hover/img:scale-100 transition-transform duration-1000" loading="lazy" />
-                                        </div>
-                                        {props.alt && (
-                                          <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-primary/40 text-center">{props.alt}</p>
-                                        )}
-                                      </div>
-                                    );
-                                  }
-                                }}
-                              >
-                                {note.simplified_content || note.simplified_notes || '*No synthesis available.*'}
-                              </ReactMarkdown>
-                           </div>
-                        </div>
-                     )}
+                      {/* TAB: NOTES */}
+                      {activeTab === 'notes' && (
+                         <div className="bg-white/40 backdrop-blur-md p-8 lg:p-16 rounded-[3rem] shadow-sm border border-white">
+                            <div className="prose prose-zinc prose-pre:bg-zinc-900 prose-pre:text-white max-w-none">
+                               <ReactMarkdown
+                                 components={{
+                                   code({ node, inline, className, children, ...props }: any) {
+                                     const match = /language-mermaid/.exec(className || '');
+                                     return !inline && match ? (
+                                       <Mermaid chart={String(children).replace(/\n$/, '')} />
+                                     ) : (
+                                       <code className={className} {...props}>
+                                         {children}
+                                       </code>
+                                     );
+                                   }
+                                 }}
+                               >
+                                 {note.simplified_content || note.simplified_notes || '*No synthesis available.*'}
+                               </ReactMarkdown>
+                            </div>
+                         </div>
+                      )}
 
-                     {/* TAB: ROADMAP */}
-                     {activeTab === 'roadmap' && (
-                        <div className="glass-card p-6 md:p-12 rounded-[3.5rem] shadow-[0_48px_96px_-32px_rgba(0,0,0,0.06)] bg-white/40 backdrop-blur-3xl border border-white">
-                           <div className="mb-12">
-                              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-2 block">Strategic Plan</span>
-                              <h3 className="text-3xl lg:text-5xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Study <span className="italic text-primary">Trajectory</span></h3>
-                              <p className="mt-4 text-sm text-zinc-500 max-w-xl">A specialized execution path derived from your content volume, optimized for retention.</p>
-                           </div>
-                           <div className="bg-white/40 p-1 rounded-[2.5rem] border border-[#160E0C08] overflow-hidden">
-                              <Mermaid chart={note.roadmap || "graph TD\n  Start[Begin Study] --> Review[Review Notes]\n  Review --> Practice[Practice Quiz]\n  Practice --> Finish[Mastery]"} />
-                           </div>
-                        </div>
-                     )}
+                      {/* TAB: ROADMAP */}
+                      {activeTab === 'roadmap' && (
+                         <div className="bg-white/40 backdrop-blur-md p-8 lg:p-16 rounded-[3rem] shadow-sm border border-white">
+                            <div className="mb-12">
+                               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-2 block">Strategic Plan</span>
+                               <h3 className="text-3xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Study <span className="italic text-primary">Trajectory</span></h3>
+                               <p className="mt-4 text-sm text-zinc-500 max-w-xl">A specialized execution path derived from your content volume, optimized for retention.</p>
+                            </div>
+                            <Mermaid chart={note.roadmap || "graph TD\n  Start[Begin] --> Learn[Learn Details]\n  Learn --> Practice[Practice Skills]\n  Practice --> Master[Mastery]"} />
+                         </div>
+                      )}
 
-                     {/* TAB: MINDMAP */}
-                     {activeTab === 'mindmap' && (
-                        <div className="glass-card p-6 md:p-12 rounded-[3.5rem] shadow-[0_48px_96px_-32px_rgba(0,0,0,0.06)] bg-white/40 backdrop-blur-3xl border border-white">
-                           <div className="mb-12">
-                              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-atelier-sage mb-2 block">Conceptual Architecture</span>
-                              <h3 className="text-3xl lg:text-5xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Knowledge <span className="italic text-atelier-sage">Topography</span></h3>
-                              <p className="mt-4 text-sm text-zinc-500 max-w-xl">A hierarchical map of interconnected insights and their logical foundations.</p>
-                           </div>
-                           <div className="bg-white/40 p-1 rounded-[2.5rem] border border-[#160E0C08] overflow-hidden">
-                              <Mermaid chart={note.mind_map || "mindmap\n  root((Core Topic))\n    Concepts\n    Applications\n    Fundamentals"} />
-                           </div>
-                        </div>
-                     )}
+                      {/* TAB: MINDMAP */}
+                      {activeTab === 'mindmap' && (
+                         <div className="bg-white/40 backdrop-blur-md p-8 lg:p-16 rounded-[3rem] shadow-sm border border-white">
+                            <div className="mb-12">
+                               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-2 block">Visual Hierarchy</span>
+                               <h3 className="text-3xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Concept <span className="italic text-primary">Map</span></h3>
+                               <p className="mt-4 text-sm text-zinc-500 max-w-xl">A hierarchical map of interconnected insights and their logical foundations.</p>
+                            </div>
+                            <Mermaid chart={note.mind_map || "mindmap\n  root((Concept))\n    Origins\n    Mechanisms\n    Impacts"} />
+                         </div>
+                      )}
 
-                     {/* TAB: QUIZ */}
-                     {activeTab === 'quiz' && (
-                        <div className="space-y-12">
-                           {/* Result Banner */}
-                           {quizScore !== null && (
-                              <motion.div 
-                                initial={{ scale: 0.9, opacity: 0 }} 
-                                animate={{ scale: 1, opacity: 1 }}
-                                className="p-10 rounded-[3rem] text-center border-t border-white shadow-2xl relative overflow-hidden"
-                                style={{
-                                  background: quizScore / (note.quizzes?.length || 1) >= 0.7 
-                                    ? 'linear-gradient(135deg, #5E7B5A 0%, #3B5B37 100%)' 
-                                    : 'linear-gradient(135deg, #E60023 0%, #A30019 100%)'
-                                }}
-                              >
-                                 <div className="relative z-10">
-                                    <div className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60 mb-4">Competency Result</div>
-                                    <div className="text-7xl font-bold text-white mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>
-                                       {((quizScore / note.quizzes.length) * 100).toFixed(0)}%
-                                    </div>
-                                    <p className="text-white font-medium mb-8 max-w-xs mx-auto text-sm leading-relaxed">
-                                       You correctly identified {quizScore} concepts out of {note.quizzes.length}. {quizScore / note.quizzes.length >= 0.8 ? 'Your mastery is exceptional.' : 'Continued study is recommended.'}
-                                    </p>
-                                    <button onClick={resetQuiz} className="px-8 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white rounded-full text-[10px] font-black uppercase tracking-widest transition-all">
-                                       Reset Atelier Evaluation
-                                    </button>
-                                 </div>
-                                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32" />
-                              </motion.div>
-                           )}
+                      {/* TAB: QUIZ */}
+                      {activeTab === 'quiz' && (
+                         <div className="space-y-8">
+                            {quizScore !== null && (
+                               <div className="p-12 rounded-[3rem] text-center bg-primary text-white shadow-2xl">
+                                  <h3 className="text-5xl font-bold mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>{((quizScore / note.quizzes.length) * 100).toFixed(0)}%</h3>
+                                  <p className="opacity-80 mb-8">You mastered {quizScore} of {note.quizzes.length} concepts.</p>
+                                  <button onClick={resetQuiz} className="px-8 py-3 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest">Retry</button>
+                               </div>
+                            )}
+                            {(note.quizzes || []).map((q: any, i: number) => (
+                               <div key={i} className="bg-white/40 backdrop-blur-md p-8 lg:p-10 rounded-[2.5rem] border border-white shadow-sm">
+                                  <h4 className="text-xl font-bold mb-6">{q.question}</h4>
+                                  <div className="grid gap-3">
+                                     {q.options.map((opt: string, oi: number) => {
+                                        const isSelected = userAnswers[i] === opt;
+                                        const revealed = quizScore !== null;
+                                        const isCorrect = revealed && opt === q.answer;
+                                        const isWrong = revealed && isSelected && opt !== q.answer;
+                                        return (
+                                           <button 
+                                              key={oi}
+                                              disabled={revealed}
+                                              onClick={() => handleQuizSelect(i, opt)}
+                                              className={`p-5 rounded-2xl text-left text-sm font-semibold transition-all border ${
+                                                isCorrect ? 'bg-green-50 border-green-200 text-green-700' : 
+                                                isWrong ? 'bg-red-50 border-red-200 text-red-700' :
+                                                isSelected ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' : 
+                                                'bg-white border-black/5 text-zinc-600 hover:border-primary/20'
+                                              }`}
+                                           >
+                                              {opt}
+                                           </button>
+                                        );
+                                     })}
+                                  </div>
+                               </div>
+                            ))}
+                            {!quizScore && (
+                               <button 
+                                  onClick={submitQuiz}
+                                  className="w-full py-5 bg-primary text-white rounded-[2rem] font-bold shadow-xl shadow-primary/20"
+                               >
+                                  Evaluate Core Knowledge
+                               </button>
+                            )}
+                         </div>
+                      )}
 
-                           <div className="masonry-grid-view">
-                              {(note.quizzes || []).map((q: any, i: number) => (
-                                 <motion.div 
-                                   key={i} 
-                                   className="glass-card mb-8 p-8 lg:p-10 rounded-[2.5rem] shadow-xl group hover:-translate-y-2 transition-transform duration-500"
-                                   initial={{ opacity: 0, y: 30 }}
-                                   animate={{ opacity: 1, y: 0 }}
-                                   transition={{ delay: i * 0.1 }}
-                                 >
-                                    <div className="flex items-start gap-4 mb-8">
-                                       <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center font-black text-sm text-primary flex-shrink-0 group-hover:scale-110 transition-transform duration-500">
-                                          {String(i + 1).padStart(2, '0')}
-                                       </div>
-                                       <h4 className="text-lg lg:text-xl font-bold leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                                          {q.question}
-                                       </h4>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                       {q.options.map((opt: string, oiIndex: number) => {
-                                          const isSelected = userAnswers[i] === opt;
-                                          const revealed = quizScore !== null;
-                                          const isCorrect = revealed && opt === q.answer;
-                                          const isWrong = revealed && isSelected && opt !== q.answer;
+                      {/* TAB: FLASHCARDS */}
+                      {activeTab === 'flashcards' && (
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {(note.flashcards || []).map((card: any, i: number) => (
+                               <div key={i} className="h-[350px] cursor-pointer group" onClick={() => toggleFlip(i)}>
+                                  <motion.div 
+                                     className="relative w-full h-full"
+                                     animate={{ rotateY: flippedCards[i] ? 180 : 0 }}
+                                     transition={{ duration: 0.6 }}
+                                     style={{ transformStyle: 'preserve-3d' }}
+                                  >
+                                     {/* Front */}
+                                     <div className="absolute inset-0 bg-white shadow-sm border border-white rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center backface-hidden">
+                                        <Sparkles className="w-8 h-8 text-primary mb-6 opacity-20" />
+                                        <h4 className="text-xl font-bold">{card.front}</h4>
+                                        <p className="absolute bottom-10 text-[9px] font-black uppercase text-zinc-400">Reveal Truth</p>
+                                     </div>
+                                     {/* Back */}
+                                     <div className="absolute inset-0 bg-primary text-white rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center backface-hidden" style={{ transform: 'rotateY(180deg)' }}>
+                                        <p className="text-lg font-medium">{card.back}</p>
+                                     </div>
+                                  </motion.div>
+                               </div>
+                            ))}
+                         </div>
+                      )}
 
-                                          return (
-                                             <button 
-                                               key={oiIndex}
-                                               disabled={revealed}
-                                               onClick={() => handleQuizSelect(i, opt)}
-                                               className={`p-5 rounded-2xl text-left text-sm font-semibold transition-all flex items-center justify-between gap-3 ${
-                                                 isSelected ? 'scale-[1.02]' : 'hover:scale-[1.01]'
-                                               }`}
-                                               style={{
-                                                  border: isCorrect ? '2px solid #5E7B5A' : isWrong ? '2px solid #E60023' : isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
-                                                  background: isCorrect ? '#5E7B5A08' : isWrong ? '#E6002308' : isSelected ? 'var(--primary)05' : 'transparent',
-                                                  color: isCorrect ? '#5E7B5A' : isWrong ? '#E60023' : isSelected ? 'var(--primary)' : 'var(--muted-foreground)',
-                                                  opacity: revealed && !isCorrect && !isSelected ? 0.4 : 1
-                                               }}
-                                             >
-                                                <span>{opt}</span>
-                                                {isCorrect && <CheckCircle className="w-4 h-4 flex-shrink-0" />}
-                                                {isWrong && <XCircle className="w-4 h-4 flex-shrink-0" />}
-                                             </button>
-                                          );
-                                       })}
-                                    </div>
-                                 </motion.div>
-                              ))}
-                           </div>
-
-                           {!quizScore && (
-                              <div className="flex justify-center pt-8">
-                                 <button 
-                                   disabled={Object.keys(userAnswers).length < (note.quizzes?.length || 0)}
-                                   onClick={submitQuiz}
-                                   className="btn-primary px-16 py-5 rounded-[2rem] text-sm uppercase font-black tracking-widest shadow-2xl shadow-primary/30 disabled:grayscale disabled:opacity-50 active:scale-95 transition-all"
-                                 >
-                                    Execute Evaluation Core
-                                 </button>
-                              </div>
-                           )}
-                        </div>
-                     )}
-
-                     {/* TAB: FLASHCARDS */}
-                     {activeTab === 'flashcards' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                           {(note.flashcards || []).map((card: any, i: number) => {
-                              const isFlipped = flippedCards[i] || false;
-                              const palette = palettes[i % palettes.length];
-                              return (
-                                 <div 
-                                   key={i} 
-                                   className="perspective-1000 h-[380px] cursor-pointer group"
-                                   onClick={() => toggleFlip(i)}
-                                 >
-                                    <motion.div 
-                                      className="relative w-full h-full preserve-3d transition-transform duration-[800ms] cubic-bezier(0.19, 1, 0.22, 1)"
-                                      initial={false}
-                                      animate={{ rotateY: isFlipped ? 180 : 0 }}
-                                    >
-                                       {/* FRONT */}
-                                       <div className="absolute inset-0 backface-hidden rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center shadow-lg border border-white bg-white/40 backdrop-blur-xl">
-                                          <div className="absolute top-10 left-10 w-2 h-2 rounded-full" style={{ background: palette.accent }} />
-                                          <Sparkles className="w-10 h-10 mb-8 opacity-20" style={{ color: palette.accent }} />
-                                          <h4 className="text-xl lg:text-2xl font-bold leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                                             {card.front}
-                                          </h4>
-                                          <div className="absolute bottom-10 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground group-hover:text-primary transition-colors">
-                                             Flip to Disclose
-                                          </div>
-                                       </div>
-                                       {/* BACK */}
-                                       <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-[2.5rem] p-10 flex flex-col items-center justify-center text-center shadow-2xl text-white"
-                                            style={{ background: palette.accent }}>
-                                          <BrainCircuit className="w-12 h-12 mb-8 opacity-40" />
-                                          <p className="text-sm lg:text-base font-bold leading-relaxed">
-                                             {card.back}
-                                          </p>
-                                          <div className="absolute bottom-10 text-[10px] font-black uppercase tracking-[0.2em] opacity-60">
-                                             Mastery Archive
-                                          </div>
-                                       </div>
-                                    </motion.div>
-                                 </div>
-                              );
-                           })}
-                        </div>
-                     )}
-
-                     {/* TAB: PODCAST */}
-                     {activeTab === 'podcast' && (
-                        <div className="max-w-3xl mx-auto py-12">
-                           <div className="glass-card rounded-[4rem] shadow-2xl p-1 lg:p-2">
-                              <div className="rounded-[3.8rem] bg-sidebar-bg text-white overflow-hidden p-12 lg:p-20 flex flex-col items-center text-center">
-                                 
-                                 <div className="relative mb-16">
-                                    <div className={`w-32 h-32 lg:w-48 lg:h-48 rounded-full border border-white/10 flex items-center justify-center relative transition-transform duration-1000 ${isSpeaking ? 'scale-110' : ''}`}>
-                                       <div className={`absolute inset-0 rounded-full bg-primary/20 blur-3xl transition-opacity duration-1000 ${isSpeaking ? 'opacity-100 animate-pulse' : 'opacity-0'}`} />
-                                       <div className="relative z-10 w-24 h-24 lg:w-32 lg:h-32 rounded-full bg-primary flex items-center justify-center shadow-[0_0_64px_rgba(230,0,35,0.4)]">
-                                          <Mic className={`w-10 h-10 lg:w-12 lg:h-12 ${isSpeaking ? 'animate-pulse' : ''}`} />
-                                       </div>
-                                       {isSpeaking && [1,2,3].map(i => (
-                                          <motion.div 
-                                             key={i} 
-                                             className="absolute inset-0 rounded-full border border-primary/40"
-                                             animate={{ scale: [1, 1.8], opacity: [0.6, 0] }}
-                                             transition={{ repeat: Infinity, duration: 2, delay: i * 0.6 }}
-                                          />
-                                       ))}
-                                    </div>
-                                 </div>
-
-                                 <div className="mb-12">
-                                    <h3 className="text-3xl lg:text-5xl font-bold mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>Auditory Synthesis</h3>
-                                    <p className="text-white/40 text-sm max-w-sm mx-auto leading-relaxed">Derived audio summary crafted in the digital atelier for hands-free conceptualization.</p>
-                                 </div>
-
-                                 <button 
-                                    onClick={handleSpeech}
-                                    className="group relative px-12 py-5 rounded-full overflow-hidden transition-all active:scale-95"
-                                 >
-                                    <div className="absolute inset-0 bg-primary group-hover:scale-110 transition-transform" />
-                                    <div className="relative z-10 flex items-center gap-3 font-black text-xs uppercase tracking-[0.2em]">
-                                       {isSpeaking ? <><VolumeX className="w-5 h-5" /> Halt Transcription</> : <><Volume2 className="w-5 h-5" /> Start Auditory Stream</>}
-                                    </div>
-                                 </button>
-                                 
-                                 {note.podcast_script && (
-                                    <div className="mt-20 w-full text-left">
-                                       <div className="flex items-center gap-2 mb-6 opacity-30">
-                                          <div className="w-8 h-[1px] bg-white" />
-                                          <span className="text-[10px] font-black uppercase tracking-widest">Atelier Script</span>
-                                       </div>
-                                       <div className="p-8 rounded-3xl bg-white/5 border border-white/5 text-sm leading-relaxed text-white/60 max-h-[400px] overflow-y-auto no-scrollbar font-medium">
-                                          {note.podcast_script}
-                                       </div>
-                                    </div>
-                                 )}
-                              </div>
-                           </div>
-                        </div>
-                     )}
+                      {/* TAB: PODCAST */}
+                      {activeTab === 'podcast' && (
+                         <div className="max-w-2xl mx-auto py-12 text-center">
+                            <div className="bg-zinc-900 text-white p-16 rounded-[4rem] shadow-2xl">
+                               <div className="w-24 h-24 bg-primary rounded-full flex items-center justify-center mx-auto mb-12 shadow-glow">
+                                  <Mic className={isSpeaking ? 'animate-pulse' : ''} />
+                               </div>
+                               <h3 className="text-4xl font-bold mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>Synthesis Stream</h3>
+                               <p className="text-white/40 mb-12">An AI-voiced auditory summary of your study piece.</p>
+                               <button 
+                                  onClick={handleSpeech}
+                                  className="px-12 py-5 bg-primary rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/40 active:scale-95 transition-all"
+                                >
+                                  {isSpeaking ? 'Halt Stream' : 'Begin Stream'}
+                               </button>
+                               {note.podcast_script && (
+                                  <div className="mt-16 text-left p-8 bg-white/5 rounded-3xl border border-white/5 text-sm text-white/50 h-64 overflow-y-auto no-scrollbar italic">
+                                     {note.podcast_script}
+                                  </div>
+                                )}
+                            </div>
+                         </div>
+                      )}
                  </motion.div>
                </AnimatePresence>
             </div>
-          </div>
         </div>
 
-        {/* ── AI CHAT SIDEBAR (Integrated Drawer) ── */}
+        {/* ── AI CHAT SIDEBAR ── */}
         <AnimatePresence>
           {showChat && (
             <motion.aside
-              initial={{ x: 100, opacity: 0 }}
+              initial={{ x: 50, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 100, opacity: 0 }}
-              className="w-full lg:w-[400px] bg-white rounded-[2.5rem] shadow-2xl border border-zinc-100 flex flex-col sticky top-24 h-[calc(100vh-140px)] z-20"
+              exit={{ x: 50, opacity: 0 }}
+              className="lg:w-[400px] w-full shrink-0 h-[calc(100vh-120px)] sticky top-24 bg-white rounded-[3rem] shadow-2xl border border-black/5 flex flex-col overflow-hidden"
             >
-               <div className="p-8 border-b border-zinc-50 flex items-center justify-between">
+               <div className="p-8 border-b border-black/5 flex items-center justify-between bg-[#FFF8F5]/50">
                   <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Bot className="w-5 h-5 text-primary" />
-                     </div>
-                     <span className="font-bold text-sm tracking-tight text-[#160E0C]">Atelier Assistant</span>
+                     <Brain className="w-6 h-6 text-primary" />
+                     <span className="font-bold text-sm">Atelier Intelligence</span>
                   </div>
-                  <button onClick={() => setShowChat(false)} className="w-8 h-8 rounded-full hover:bg-zinc-50 flex items-center justify-center text-zinc-400 Transition-all">
-                     <X className="w-4 h-4" />
+                  <button onClick={() => setShowChat(false)} className="w-10 h-10 rounded-full hover:bg-black/5 flex items-center justify-center transition-colors">
+                     <X className="w-5 h-5 text-zinc-400" />
                   </button>
                </div>
 
                <div className="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar">
                   {chatHistory.length === 0 && (
-                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
-                        <Brain className="w-10 h-10 mb-4" />
-                        <p className="text-[10px] font-black uppercase tracking-widest">Awaiting conceptual inquiry</p>
+                     <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
+                        <Sparkles className="w-12 h-12 mb-4 text-primary" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Inquire regarding the synthesis</p>
                      </div>
                   )}
                   {chatHistory.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                       <div className={`max-w-[85%] p-5 rounded-2xl text-xs font-medium leading-relaxed ${msg.role === 'user' ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' : 'bg-zinc-50 text-zinc-700 rounded-tl-none border border-zinc-100'}`}>
+                       <div className={`max-w-[85%] p-5 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/20' : 'bg-zinc-100 text-zinc-800 rounded-tl-none'}`}>
                           {msg.content}
                        </div>
                     </div>
                   ))}
                   {chatLoading && (
-                    <div className="flex gap-2 p-4 bg-zinc-50 rounded-2xl w-20">
-                       <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" />
-                       <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce delay-150" />
-                       <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce delay-300" />
-                    </div>
+                     <div className="flex gap-1.5 p-4 bg-zinc-50 rounded-2xl w-16">
+                        <div className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" />
+                        <div className="w-2 h-2 rounded-full bg-primary/40 animate-bounce delay-150" />
+                        <div className="w-2 h-2 rounded-full bg-primary/40 animate-bounce delay-300" />
+                     </div>
                   )}
                   <div ref={chatBottomRef} />
                </div>
 
-               <div className="p-6">
-                  <form onSubmit={handleChat} className="flex items-center gap-2 bg-zinc-50 p-1.5 rounded-full border border-zinc-100 focus-within:border-primary/20 transition-all">
+               <div className="p-6 bg-white border-t border-black/5">
+                  <form onSubmit={handleChat} className="flex gap-2">
                      <input 
                        type="text" 
-                       placeholder="Inquire further..."
-                       className="flex-1 bg-transparent pl-5 py-3 text-xs font-semibold outline-none"
+                       placeholder="Deepen your inquiry..."
+                       className="flex-1 bg-zinc-50 border-none rounded-full px-6 py-4 text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none font-medium"
                        value={chatPrompt}
                        onChange={e => setChatPrompt(e.target.value)}
                     />
-                    <button disabled={!chatPrompt.trim() || chatLoading} className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center shadow-lg disabled:opacity-40 hover:scale-105 active:scale-95 transition-all">
-                       <Send className="w-4 h-4" />
+                    <button type="submit" className="w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
+                       <Send className="w-5 h-5" />
                     </button>
                   </form>
                </div>
@@ -670,16 +549,11 @@ export default function NoteView({ id }: { id: string }) {
       </div>
 
       <style jsx global>{`
-        .perspective-1000 { perspective: 1000px; }
-        .preserve-3d { transform-style: preserve-3d; }
-        .backface-hidden { backface-visibility: hidden; }
-        .rotate-y-180 { transform: rotateY(180deg); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .shadow-glow { shadow: 0 0 40px var(--primary); }
+        .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+        .shadow-glow { box-shadow: 0 0 30px rgba(230,0,35,0.4); }
       `}</style>
     </div>
   );
 }
-
-
