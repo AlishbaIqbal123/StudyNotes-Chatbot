@@ -62,23 +62,38 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
+  const [exhibitOptions, setExhibitOptions] = useState({
+    quiz: true,
+    flash: true,
+    road: true,
+    mind: true,
+    podcast: true
+  });
+
   const simulateProgress = () => {
     let p = 0;
     let s = 0;
     const iv = setInterval(() => {
-      p += Math.random() * 12;
+      p += Math.random() * 8;
       if (p > 92) p = 92;
       setProgress(Math.min(p, 92));
       if (s < steps.length - 1 && p > (s + 1) * 18) {
         s++;
         setStepIdx(s);
       }
-    }, 1100);
+    }, 1200);
     return iv;
   };
 
   const handleProcess = async (type: string) => {
     if (loading) return;
+    
+    // File Size Check
+    if (type === 'file' && file && file.size > 15 * 1024 * 1024) {
+      setError('Content volume exceeds atelier capacity (15MB limit). Please optimize or split the file.');
+      return;
+    }
+
     setError(null);
     setLoading(true);
     setProgress(5);
@@ -87,10 +102,20 @@ export default function UploadPage() {
 
     try {
       let response;
-      if (type === 'youtube') response = await studyApi.processYoutube(youtubeUrl);
-      else if (type === 'text') response = await studyApi.processText(rawText);
-      else if (type === 'file' && file) response = await studyApi.processFile(file);
-      else throw new Error('No input provided.');
+      if (type === 'youtube') {
+        if (!youtubeUrl.includes('youtube.com') && !youtubeUrl.includes('youtu.be')) {
+          throw new Error('Please provide a valid YouTube URL for transduction.');
+        }
+        response = await studyApi.processYoutube(youtubeUrl);
+      }
+      else if (type === 'text') {
+        if (rawText.length < 50) throw new Error('Input text is too brief for a high-fidelity synthesis (min 50 chars).');
+        response = await studyApi.processText(rawText);
+      }
+      else if (type === 'file' && file) {
+        response = await studyApi.processFile(file);
+      }
+      else throw new Error('No valid input was detected in the workspace.');
 
       clearInterval(iv);
       setProgress(100);
@@ -117,12 +142,12 @@ export default function UploadPage() {
           localStorage.setItem(`lumina_guest_note_${noteId}`, JSON.stringify(noteData));
         }
 
-        setTimeout(() => router.push(`/notes?id=${noteId}`), 1000);
+        setTimeout(() => router.push(`/notes?id=${noteId}`), 1200);
       }
     } catch (err: any) {
       clearInterval(iv);
-      console.error('Processing failed:', err);
-      const msg = err?.response?.data?.detail || err?.message || 'The atelier could not process your content. Please check your network and try again.';
+      console.error('Atelier Processing Failed:', err);
+      const msg = err?.response?.data?.detail || err?.message || 'The atelier encountered an unforeseen fragmentation. Please try again.';
       setError(msg);
       setLoading(false);
       setProgress(0);
@@ -305,7 +330,7 @@ export default function UploadPage() {
               ))}
 
               {/* Atelier Stats */}
-              <div className="p-8 rounded-[2.5rem] bg-sidebar-bg text-white mt-12 hidden lg:block overflow-hidden relative group">
+              <div className="p-8 rounded-[2.5rem] bg-sidebar-bg text-white mt-8 hidden lg:block overflow-hidden relative group">
                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-2xl -mr-16 -mt-16 group-hover:opacity-40 transition-opacity" />
                  <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/80 mb-6" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Board Insights</h5>
                  <div className="space-y-6 relative z-10">
@@ -318,16 +343,41 @@ export default function UploadPage() {
                           <div className="h-full bg-primary w-4/5" />
                        </div>
                     </div>
-                    <div>
-                       <div className="flex justify-between items-end mb-2 text-xs">
-                          <span className="text-white/60 font-semibold">Active Studio Memory</span>
-                          <span className="text-white font-bold">1.4 GB</span>
-                       </div>
-                       <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
-                          <div className="h-full bg-primary w-2/3" />
-                       </div>
-                    </div>
                  </div>
+              </div>
+
+              {/* Generation Options (Small Options) */}
+              <div className="mt-8 p-8 border border-[#160E0C]/5 bg-white/40 backdrop-blur-md rounded-[2.5rem] hidden lg:block">
+                 <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-[#160E0C]/40 mb-6" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Exhibit Core</h5>
+                 <div className="grid grid-cols-1 gap-3">
+                    {[
+                      { id: 'quiz', label: 'Evaluation Engine', color: 'var(--atelier-sage)' },
+                      { id: 'flash', label: 'Memory Archive', color: 'var(--atelier-sky)' },
+                      { id: 'road', label: 'Study Trajectory', color: 'var(--atelier-orange)' },
+                      { id: 'mind', label: 'Conceptual Map', color: 'var(--atelier-lavender)' },
+                      { id: 'podcast', label: 'Auditory Synthesis', color: 'var(--atelier-crimson)' },
+                    ].map((opt) => (
+                      <button 
+                        key={opt.id} 
+                        onClick={() => setExhibitOptions(prev => ({ ...prev, [opt.id]: !prev[opt.id as keyof typeof prev] }))}
+                        className="flex items-center justify-between p-4 rounded-3xl bg-white border border-[#160E0C]/5 hover:border-primary/20 transition-all group/opt shadow-sm"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2.5 h-2.5 rounded-full transition-all ${exhibitOptions[opt.id as keyof typeof exhibitOptions] ? 'scale-100 shadow-[0_0_8px_var(--primary)]' : 'scale-50 opacity-20'}`} style={{ background: opt.color || 'var(--primary)' }} />
+                          <span className={`text-[11px] font-black uppercase tracking-[0.05em] transition-colors ${exhibitOptions[opt.id as keyof typeof exhibitOptions] ? 'text-[#160E0C]' : 'text-zinc-300'}`}>{opt.label}</span>
+                        </div>
+                        <div className={`w-8 h-4 rounded-full relative transition-colors duration-500 ${exhibitOptions[opt.id as keyof typeof exhibitOptions] ? 'bg-primary/20' : 'bg-muted'}`}>
+                           <motion.div 
+                             animate={{ x: exhibitOptions[opt.id as keyof typeof exhibitOptions] ? 16 : 2 }}
+                             className={`absolute top-0.5 w-3 h-3 rounded-full ${exhibitOptions[opt.id as keyof typeof exhibitOptions] ? 'bg-primary' : 'bg-zinc-400'}`} 
+                           />
+                        </div>
+                      </button>
+                    ))}
+                 </div>
+                 <p className="mt-6 text-[9px] font-bold text-[#160E0C]/30 leading-relaxed uppercase tracking-widest text-center">
+                    Full Atelier Integration active
+                 </p>
               </div>
             </div>
 

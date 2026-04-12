@@ -109,8 +109,8 @@ class AIService:
     async def process_document(text: str) -> Dict:
         """
         Generates a premium, high-fidelity study package from raw text.
-        Produces detailed (1000-1500 words), authentic, and easy-to-understand notes
-        with embedded visual diagrams.
+        Produces detailed (2000+ words), authentic, and easy-to-understand notes
+        with embedded visual diagrams, a strategic roadmap, and a mind map.
         """
         prompt = f"""You are the lead content designer at Lumina Atelier, an expert academic tutor.
 
@@ -120,33 +120,30 @@ YOUR GOAL: Produce a high-density learning experience that feels like it was wri
 CONSTRAINTS:
 - Return ONLY a raw JSON object — no markdown fences, no commentary.
 - Properly escape all special characters inside string values.
-- "simplified_notes" MUST be extremely detailed (1500-2000 words). 
+- "simplified_notes" MUST be extremely detailed (approx 2000 words). 
 - In "simplified_notes", use rich Markdown: # Title, ## Subheadings, **Bold** concepts, and > Blockquotes for key insights.
 - **AUTHENTICITY**: Ensure the tone is academic yet accessible. Deep dive into the "why" and "how", not just the "what".
-- **IMAGES**: EMBED AT LEAST 5 IMAGES within the "simplified_notes" using this syntax:
-  ![Diagram](https://pollinations.ai/p/DETAILED_ACADEMIC_DESCRIPTION_OF_A_SCIENTIFIC_OR_HISTORICAL_SCENE?width=800&height=450&model=flux&nologo=true)
-- **DIAGRAMS**: Include at least 2 Mermaid.js diagrams (flowcharts or gantt charts) wrapped in ```mermaid code blocks where they add value.
-- THE TONE: Expert, authentic, but simplified wording for maximum clarity.
+- **SIMPLICITY**: Use easy-to-understand wording while maintaining technical depth.
+- **IMAGES**: EMBED AT LEAST 5 HIGH-QUALITY IMAGES within the "simplified_notes" using this syntax:
+  ![Visual](https://pollinations.ai/p/DETAILED_DESCRIPTIVE_PROMPT?width=1000&height=600&model=flux&nologo=true)
+- **DIAGRAMS**: Include at least 2 Mermaid.js diagrams (concept maps or timelines) inside "simplified_notes" using ```mermaid blocks.
+- **STRATEGIC ROADMAP**: Provide a "roadmap_mermaid" field with a Mermaid-formatted 'gantt' or 'graph TD' showing a step-by-step study plan for this topic.
+- **CONCEPT MIND MAP**: Provide a "mind_map_mermaid" field with a Mermaid-formatted 'mindmap' or 'graph LR' showing the relationship between core concepts.
 
 Return exactly this JSON shape:
 {{
   "title": "Specific, sophisticated academic title",
   "simplified_notes": "A massive, multi-section Markdown document. Include deep-dives. Embed images and mermaid diagrams as requested.",
   "quizzes": [
-    {{
-      "question": "Deep comprehension question",
-      "options": ["A", "B", "C", "D"],
-      "answer": "A"
-    }}
+    {{ "question": "Deep comprehension question", "options": ["A", "B", "C", "D"], "answer": "A" }}
   ],
   "flashcards": [
-    {{
-      "front": "Complex concept",
-      "back": "Detailed, easy-to-understand breakdown"
-    }}
+    {{ "front": "Complex concept", "back": "Detailed, easy-to-understand breakdown" }}
   ],
-  "podcast_script": "A sophisticated, 3-4 minute engaging auditory synthesis.",
-  "visual_prompt": "A single, stunning cinematic hero illustration prompt for the board header."
+  "roadmap_mermaid": "Mermaid code for a study roadmap graph/gantt",
+  "mind_map_mermaid": "Mermaid code for a concept mind map",
+  "podcast_script": "A sophisticated, engaging auditory synthesis.",
+  "visual_prompt": "A single, stunning cinematic hero illustration prompt."
 }}
 
 TEXT TO ANALYZE:
@@ -162,6 +159,8 @@ TEXT TO ANALYZE:
                 "simplified_notes": data.get("simplified_notes") or data.get("notes", "*No notes available.*"),
                 "quizzes": data.get("quizzes", []),
                 "flashcards": data.get("flashcards", []),
+                "roadmap": data.get("roadmap_mermaid", ""),
+                "mind_map": data.get("mind_map_mermaid", ""),
                 "podcast_script": data.get("podcast_script", ""),
                 "visual_prompt": data.get("visual_prompt") or data.get("title", "educational concept art"),
             }

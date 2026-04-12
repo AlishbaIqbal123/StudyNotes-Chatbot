@@ -225,6 +225,8 @@ export default function NoteView({ id }: { id: string }) {
 
   const tabs = [
     { id: 'notes', label: 'Journal', icon: BookOpen, color: 'var(--primary)' },
+    { id: 'roadmap', label: 'Roadmap', icon: ChevronRight, color: '#C8552A' },
+    { id: 'mindmap', label: 'Mind Map', icon: BrainCircuit, color: '#5E7B5A' },
     { id: 'quiz', label: 'Evaluation', icon: Zap, color: '#5E7B5A' },
     { id: 'flashcards', label: 'Memory', icon: Layers, color: '#3B9BC8' },
     { id: 'podcast', label: 'Auditory', icon: Mic, color: '#7C6FCD' },
@@ -238,130 +240,88 @@ export default function NoteView({ id }: { id: string }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#FFF8F5] text-[#160E0C] flex flex-col lg:flex-row overflow-hidden relative">
+    <div className="relative min-h-[80vh] bg-transparent text-[#160E0C]">
       
-      {/* ── LEFT NAVBAR (DESKTOP) ── */}
-      <nav className="fixed left-0 top-0 h-full w-20 hidden lg:flex flex-col items-center py-8 gap-10 bg-sidebar-bg border-r border-white/5 z-50">
-         <Link href="/dashboard" className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-transform">
-            <ArrowLeft className="w-6 h-6 text-white" />
-         </Link>
-         
-         <div className="flex flex-col gap-6">
-            {tabs.map((tab) => (
-              <button 
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`relative group w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${activeTab === tab.id ? 'bg-white text-primary' : 'text-white/40 hover:text-white/80'}`}
-              >
-                 <tab.icon className="w-5 h-5 relative z-10" />
-                 {activeTab === tab.id && (
-                   <motion.div layoutId="nav-active" className="absolute inset-0 bg-white rounded-2xl shadow-xl" />
-                 )}
-                 <div className="absolute left-full ml-4 px-3 py-1.5 bg-black text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap pointer-events-none z-[100]">
-                    {tab.label}
-                 </div>
-              </button>
-            ))}
-         </div>
+      {/* ── ATELIER CONTROL BAR ── */}
+      <div className="sticky top-0 z-30 mb-8 py-4 bg-studio-bg/60 backdrop-blur-xl border-b border-[#160E0C10] -mx-4 px-4 md:-mx-8 md:px-8 lg:-mx-16 lg:px-16">
+         <div className="flex items-center justify-between gap-4 overflow-x-auto no-scrollbar py-1">
+            <div className="flex items-center bg-white/40 p-1.5 rounded-2xl border border-white">
+               {tabs.map((tab) => (
+                 <button 
+                   key={tab.id}
+                   onClick={() => setActiveTab(tab.id)}
+                   className={`relative px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'text-primary' : 'text-zinc-400 hover:text-zinc-600'}`}
+                 >
+                    <div className="relative z-10 flex items-center gap-2">
+                       <tab.icon className="w-3.5 h-3.5" />
+                       <span className="hidden sm:inline-block">{tab.label}</span>
+                    </div>
+                    {activeTab === tab.id && (
+                      <motion.div layoutId="subnav-active" className="absolute inset-0 bg-white shadow-sm rounded-xl" />
+                    )}
+                 </button>
+               ))}
+            </div>
 
-         <div className="mt-auto flex flex-col gap-6 items-center">
-            <button 
-               onClick={() => setShowChat(!showChat)}
-               className={`w-12 h-12 rounded-2xl border-2 flex items-center justify-center transition-all ${showChat ? 'bg-primary border-primary text-white scale-110 shadow-lg shadow-primary/20' : 'border-white/10 text-white/40 hover:border-white/20'}`}
-            >
-               <MessageSquare className="w-5 h-5" />
-            </button>
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+               <button 
+                  onClick={() => setShowChat(!showChat)}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl border transition-all ${showChat ? 'bg-primary border-primary text-white shadow-lg' : 'bg-white border-white text-zinc-500'}`}
+               >
+                  <MessageSquare className="w-4 h-4" />
+                  <span className="text-[10px] font-black uppercase tracking-widest hidden md:inline">Interrogate</span>
+               </button>
+            </div>
          </div>
-      </nav>
+      </div>
 
-      {/* ── MAIN VIEWPORT ── */}
-      <main className={`flex-1 flex flex-col lg:ml-20 transition-all duration-500 ${showChat ? 'lg:mr-[400px]' : ''}`}>
+      <div className="flex flex-col lg:flex-row gap-8">
         
-        {/* MOBILE HEADER */}
-        <header className="lg:hidden h-16 glass px-6 flex items-center justify-between sticky top-0 z-40 border-b border-muted">
-           <Link href="/dashboard" className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center">
-              <ArrowLeft className="w-5 h-5" />
-           </Link>
-           <h1 className="text-xs font-black uppercase tracking-widest truncate max-w-[150px]">{note.title}</h1>
-           <button onClick={() => setShowChat(!showChat)} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${showChat ? 'bg-primary text-white' : 'bg-muted'}`}>
-              <MessageSquare className="w-5 h-5" />
-           </button>
-        </header>
-
-        <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
+        {/* ── MAIN VIEWPORT AREA ── */}
+        <div className={`flex-1 transition-all duration-500`}>
           
-          {/* HERO COVER */}
-          <section className="relative h-[300px] lg:h-[500px] group overflow-hidden bg-sidebar-bg">
-             <div className="absolute inset-0 bg-black/40 z-10 group-hover:bg-black/20 transition-colors" />
-             <img 
-               src={`https://pollinations.ai/p/${encodeURIComponent(note.visual_prompt || note.title || "academic study atmosphere")}?width=1920&height=1080&model=flux&nologo=true&seed=${id.length}`} 
-               className="w-full h-full object-cover scale-105 group-hover:scale-100 transition-transform duration-[2000ms]"
-               alt={note.title}
-               loading="lazy"
-               onError={(e) => {
-                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=1920&auto=format&fit=crop';
-               }}
-             />
-             <div className="absolute inset-0 bg-gradient-to-t from-[#FFF8F5] via-transparent to-transparent z-20 pointer-events-none" />
-             
-             <div className="absolute bottom-10 left-8 lg:left-16 right-8 z-30">
-                <motion.div 
-                   initial={{ opacity: 0, y: 30 }}
-                   animate={{ opacity: 1, y: 0 }}
-                   className="flex flex-col gap-4"
-                >
-                   <div className="flex items-center gap-3">
-                      <span className="px-3 py-1.5 rounded-full bg-primary text-white text-[10px] font-black uppercase tracking-[0.2em]">
-                         Atelier Piece • {note.source_type}
-                      </span>
-                      <span className="text-xs font-bold text-white/80 backdrop-blur-md px-3 py-1.5 rounded-full bg-black/40">
-                         {new Date(note.createdAt?.seconds ? note.createdAt.seconds * 1000 : note.createdAt).toLocaleDateString()}
-                      </span>
-                   </div>
-                   <h1 className="text-4xl lg:text-7xl font-bold tracking-tight text-black drop-shadow-sm leading-tight max-w-4xl" style={{ fontFamily: "'Playfair Display', serif" }}>
-                      {note.title}
-                   </h1>
-                </motion.div>
-             </div>
-
-             {/* Dynamic background badge */}
-             <div className="absolute top-10 right-10 z-30 hidden lg:flex items-center gap-2 px-6 py-4 bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2.5rem] shadow-2xl">
-                 <div className="w-10 h-10 rounded-[1.25rem] bg-primary flex items-center justify-center text-white">
-                    <Sparkles className="w-5 h-5" />
-                 </div>
-                 <div className="pr-4">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/80">Concept Accuracy</p>
-                    <p className="text-sm font-bold">98.4% Synthesized</p>
-                 </div>
-             </div>
-          </section>
-
-          {/* MAIN CONTENT AREA */}
-          <div className="px-8 lg:px-16 pb-24">
-             
-             {/* Sub-tabs for tablets */}
-             <div className="lg:hidden flex gap-2 mb-10 overflow-x-auto py-2 no-scrollbar">
-                {tabs.map((tab) => (
-                  <button 
-                    key={tab.id} 
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex-shrink-0 flex items-center gap-2 px-5 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg' : 'bg-muted text-muted-foreground'}`}
+            {/* HERO COVER */}
+            <section className="relative h-[250px] lg:h-[400px] group overflow-hidden rounded-[3rem] shadow-2xl bg-sidebar-bg mb-12">
+               <div className="absolute inset-0 bg-black/30 z-10" />
+               <img 
+                 src={`https://pollinations.ai/p/${encodeURIComponent(note.visual_prompt || note.title || "academic study atmosphere")}?width=1920&height=1080&model=flux&nologo=true&seed=${id.length}`} 
+                 className="w-full h-full object-cover scale-[1.02] group-hover:scale-100 transition-transform duration-[3000ms]"
+                 alt={note.title}
+                 loading="lazy"
+                 onError={(e) => {
+                   (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=1920&auto=format&fit=crop';
+                 }}
+               />
+               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-20 pointer-events-none" />
+               
+               <div className="absolute bottom-10 left-8 lg:left-12 right-8 z-30">
+                  <motion.div 
+                     initial={{ opacity: 0, y: 20 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     className="flex flex-col gap-3"
                   >
-                    <tab.icon className="w-4 h-4" /> {tab.label}
-                  </button>
-                ))}
-             </div>
+                     <div className="flex items-center gap-2">
+                        <span className="px-3 py-1 rounded-full bg-primary/20 backdrop-blur-md border border-white/20 text-white text-[9px] font-black uppercase tracking-[0.2em]">
+                           {note.source_type} Synthesis
+                        </span>
+                     </div>
+                     <h1 className="text-3xl lg:text-5xl font-bold tracking-tight text-white leading-tight max-w-3xl" style={{ fontFamily: "'Playfair Display', serif" }}>
+                        {note.title}
+                     </h1>
+                  </motion.div>
+               </div>
+            </section>
 
-             <div className="max-w-5xl">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={activeTab}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                  >
+            {/* EXHIBIT VIEWER */}
+            <div className="w-full">
+               <AnimatePresence mode="wait">
+                 <motion.div
+                   key={activeTab}
+                   initial={{ opacity: 0, x: 15 }}
+                   animate={{ opacity: 1, x: 0 }}
+                   exit={{ opacity: 0, scale: 0.98 }}
+                   transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                 >
                      
                      {/* TAB HEADER */}
                      <div className="mb-12 flex items-center justify-between">
@@ -416,6 +376,46 @@ export default function NoteView({ id }: { id: string }) {
                               >
                                 {note.simplified_content || note.simplified_notes || '*No synthesis available.*'}
                               </ReactMarkdown>
+                           </div>
+                        </div>
+                     )}
+
+                     {/* TAB: ROADMAP */}
+                     {activeTab === 'roadmap' && (
+                        <div className="glass-card p-8 lg:p-16 rounded-[3rem] shadow-xl text-center min-h-[500px] flex flex-col justify-center">
+                           <div className="mb-10">
+                              <h3 className="text-3xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Study <span className="italic">Trajectory</span></h3>
+                              <p className="text-sm text-muted-foreground">Lumina's suggested strategic path to mastering these concepts.</p>
+                           </div>
+                           <div className="p-8 bg-white/40 rounded-[2rem] border border-white shadow-inner">
+                             {note.roadmap ? (
+                                <Mermaid chart={note.roadmap} />
+                             ) : (
+                                <div className="py-20 flex flex-col items-center">
+                                   <RotateCcw className="w-10 h-10 text-muted-foreground opacity-20 mb-4 animate-spin-slow" />
+                                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Roadmap synthesis pending...</p>
+                                </div>
+                             )}
+                           </div>
+                        </div>
+                     )}
+
+                     {/* TAB: MIND MAP */}
+                     {activeTab === 'mindmap' && (
+                        <div className="glass-card p-8 lg:p-16 rounded-[3rem] shadow-xl text-center min-h-[500px] flex flex-col justify-center">
+                           <div className="mb-10">
+                              <h3 className="text-3xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Conceptual <span className="italic">Cartography</span></h3>
+                              <p className="text-sm text-muted-foreground">Neural mapping of the core relationships within this atelier piece.</p>
+                           </div>
+                           <div className="p-8 bg-white/40 rounded-[2rem] border border-white shadow-inner">
+                             {note.mind_map ? (
+                                <Mermaid chart={note.mind_map} />
+                             ) : (
+                                <div className="py-20 flex flex-col items-center">
+                                   <BrainCircuit className="w-10 h-10 text-muted-foreground opacity-20 mb-4" />
+                                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Mind map rendering initialization...</p>
+                                </div>
+                             )}
                            </div>
                         </div>
                      )}
@@ -613,129 +613,76 @@ export default function NoteView({ id }: { id: string }) {
                               </div>
                            </div>
                         </div>
-                     )}
-
-                  </motion.div>
-                </AnimatePresence>
-             </div>
+                        </motion.div>
+               </AnimatePresence>
+            </div>
           </div>
         </div>
-      </main>
 
-      {/* ── AI CHAT SIDEBAR ── */}
-      <AnimatePresence>
-        {showChat && (
-          <motion.aside
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 200 }}
-            className="fixed right-0 top-0 h-full w-full sm:w-[450px] bg-white border-l border-[#160E0C10] shadow-[[-32px_0_64px_rgba(0,0,0,0.1)]] z-[60] flex flex-col"
-          >
-             {/* CHAT HEADER */}
-             <div className="p-8 flex items-center justify-between border-b border-muted bg-[#FFF8F5]/80 backdrop-blur-md sticky top-0 z-10">
-                <div className="flex items-center gap-4">
-                   <div className="w-14 h-14 rounded-[1.5rem] bg-sidebar-bg flex items-center justify-center relative overflow-hidden group">
-                      <div className="absolute inset-0 bg-primary opacity-0 group-hover:opacity-20 transition-opacity" />
-                       <Bot className="w-7 h-7 text-primary" />
-                   </div>
-                   <div>
-                      <h4 className="font-bold text-sm tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Lumina Atelier Bot</h4>
-                      <div className="flex items-center gap-1.5">
-                         <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-[#160E0C] opacity-40">Direct Intelligence</span>
-                      </div>
-                   </div>
-                </div>
-                <button onClick={() => setShowChat(false)} className="w-10 h-10 rounded-full hover:bg-muted flex items-center justify-center transition-colors">
-                   <X className="w-5 h-5 opacity-40" />
-                </button>
-             </div>
-
-             {/* CHAT MESSAGES */}
-             <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar bg-white">
-                {chatHistory.length === 0 && (
-                   <div className="h-full flex flex-col items-center justify-center text-center px-6">
-                      <div className="w-20 h-20 rounded-[2rem] bg-[#FFF8F5] flex items-center justify-center mb-6">
-                         <Brain className="w-8 h-8 text-primary/40" />
-                      </div>
-                      <h5 className="text-lg font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Conceptual Interrogation</h5>
-                      <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
-                         Question the synthesis or request deeper insights. I am fully integrated with this atelier piece.
-                      </p>
-                      <div className="mt-8 flex flex-wrap justify-center gap-2">
-                         {['Summarize concepts', 'Quiz me now', 'Explain the context'].map(tip => (
-                            <button key={tip} onClick={() => setChatPrompt(tip)} className="px-4 py-2 bg-[#FFF8F5] border border-muted hover:border-primary/20 rounded-full text-[10px] font-bold text-muted-foreground hover:text-primary transition-all">
-                               {tip}
-                            </button>
-                         ))}
-                      </div>
-                   </div>
-                )}
-
-                {chatHistory.map((msg, i) => (
-                  <motion.div 
-                    key={i} 
-                    initial={{ opacity: 0, y: 10 }} 
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className={`flex items-start gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-                  >
-                     <div 
-                        className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center transition-transform hover:scale-110 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-[#FFF8F5] text-primary'}`}
-                     >
-                        {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+        {/* ── AI CHAT SIDEBAR (Integrated Drawer) ── */}
+        <AnimatePresence>
+          {showChat && (
+            <motion.aside
+              initial={{ x: 100, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 100, opacity: 0 }}
+              className="w-full lg:w-[400px] bg-white rounded-[2.5rem] shadow-2xl border border-zinc-100 flex flex-col sticky top-24 h-[calc(100vh-140px)] z-20"
+            >
+               <div className="p-8 border-b border-zinc-50 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <Bot className="w-5 h-5 text-primary" />
                      </div>
-                     <div 
-                        className={`p-5 rounded-[1.5rem] lg:rounded-[1.75rem] text-sm font-medium leading-relaxed max-w-[85%] ${
-                           msg.role === 'user' ? 'bg-primary text-white rounded-tr-none' : 'bg-[#FFF8F5] text-[#160E0C] rounded-tl-none border border-muted'
-                        }`}
-                        style={{ fontFamily: "'Manrope', sans-serif" }}
-                     >
-                        {msg.content}
+                     <span className="font-bold text-sm tracking-tight text-[#160E0C]">Atelier Assistant</span>
+                  </div>
+                  <button onClick={() => setShowChat(false)} className="w-8 h-8 rounded-full hover:bg-zinc-50 flex items-center justify-center text-zinc-400 Transition-all">
+                     <X className="w-4 h-4" />
+                  </button>
+               </div>
+
+               <div className="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar">
+                  {chatHistory.length === 0 && (
+                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                        <Brain className="w-10 h-10 mb-4" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Awaiting conceptual inquiry</p>
                      </div>
-                  </motion.div>
-                ))}
+                  )}
+                  {chatHistory.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                       <div className={`max-w-[85%] p-5 rounded-2xl text-xs font-medium leading-relaxed ${msg.role === 'user' ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10' : 'bg-zinc-50 text-zinc-700 rounded-tl-none border border-zinc-100'}`}>
+                          {msg.content}
+                       </div>
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="flex gap-2 p-4 bg-zinc-50 rounded-2xl w-20">
+                       <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" />
+                       <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce delay-150" />
+                       <div className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce delay-300" />
+                    </div>
+                  )}
+                  <div ref={chatBottomRef} />
+               </div>
 
-                {chatLoading && (
-                   <div className="flex items-start gap-4">
-                      <div className="w-9 h-9 rounded-xl bg-[#FFF8F5] flex items-center justify-center flex-shrink-0 animate-pulse">
-                         <Bot className="w-4 h-4 text-primary" />
-                      </div>
-                      <div className="p-6 bg-[#FFF8F5] rounded-[1.75rem] rounded-tl-none flex gap-2 border border-muted">
-                         {[1,2,3].map(i => (
-                            <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
-                         ))}
-                      </div>
-                   </div>
-                )}
-                <div ref={chatBottomRef} />
-             </div>
+               <div className="p-6">
+                  <form onSubmit={handleChat} className="flex items-center gap-2 bg-zinc-50 p-1.5 rounded-full border border-zinc-100 focus-within:border-primary/20 transition-all">
+                     <input 
+                       type="text" 
+                       placeholder="Inquire further..."
+                       className="flex-1 bg-transparent pl-5 py-3 text-xs font-semibold outline-none"
+                       value={chatPrompt}
+                       onChange={e => setChatPrompt(e.target.value)}
+                    />
+                    <button disabled={!chatPrompt.trim() || chatLoading} className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center shadow-lg disabled:opacity-40 hover:scale-105 active:scale-95 transition-all">
+                       <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+               </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
+      </div>
 
-             {/* CHAT INPUT */}
-             <div className="p-8 bg-white border-t border-muted sticky bottom-0">
-                <form 
-                  onSubmit={handleChat}
-                  className="relative group bg-[#FFF8F5] rounded-[2rem] border-2 border-transparent focus-within:border-primary/10 p-2 pl-6 pr-2 flex items-center gap-2 transition-all"
-                >
-                   <input 
-                     type="text" 
-                     placeholder="Interrogate your board..."
-                     className="flex-1 bg-transparent py-3 text-sm font-semibold outline-none text-[#160E0C]"
-                     value={chatPrompt}
-                     onChange={e => setChatPrompt(e.target.value)}
-                   />
-                   <button 
-                     disabled={!chatPrompt.trim() || chatLoading}
-                     className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-xl shadow-primary/20 hover:scale-110 active:scale-95 disabled:grayscale disabled:opacity-40 transition-all"
-                   >
-                      <Send className="w-5 h-5" />
-                   </button>
-                </form>
-             </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
       <style jsx global>{`
         .perspective-1000 { perspective: 1000px; }
         .preserve-3d { transform-style: preserve-3d; }
@@ -743,11 +690,12 @@ export default function NoteView({ id }: { id: string }) {
         .rotate-y-180 { transform: rotateY(180deg); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.05); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.1); }
+        .shadow-glow { shadow: 0 0 40px var(--primary); }
       `}</style>
+    </div>
+  );
+}
+/style>
     </div>
   );
 }

@@ -81,6 +81,8 @@ async def process_content(
             "simplified_content": processed.get("simplified_notes", ""),
             "quizzes": processed.get("quizzes", []),
             "flashcards": processed.get("flashcards", []),
+            "roadmap": processed.get("roadmap", ""),
+            "mind_map": processed.get("mind_map", ""),
             "podcast_script": processed.get("podcast_script", ""),
             "visual_prompt": processed.get("visual_prompt", ""),
             "raw_text": raw_text[:2000],
