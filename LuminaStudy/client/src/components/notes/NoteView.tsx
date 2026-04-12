@@ -78,7 +78,7 @@ const Mermaid = ({ chart }: { chart: string }) => {
 export default function NoteView({ id }: { id: string }) {
   const [note, setNote] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'notes' | 'quiz' | 'flashcards' | 'podcast'>('notes');
+  const [activeTab, setActiveTab] = useState<'notes' | 'quiz' | 'flashcards' | 'podcast' | 'roadmap' | 'mindmap'>('notes');
   const [showChat, setShowChat] = useState(false);
   const [chatPrompt, setChatPrompt] = useState('');
   const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'bot'; content: string }[]>([]);
@@ -416,6 +416,34 @@ export default function NoteView({ id }: { id: string }) {
                                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Mind map rendering initialization...</p>
                                 </div>
                              )}
+                           </div>
+                        </div>
+                     )}
+
+                     {/* TAB: ROADMAP */}
+                     {activeTab === 'roadmap' && (
+                        <div className="glass-card p-6 md:p-12 rounded-[3.5rem] shadow-[0_48px_96px_-32px_rgba(0,0,0,0.06)] bg-white/40 backdrop-blur-3xl border border-white">
+                           <div className="mb-12">
+                              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-2 block">Strategic Plan</span>
+                              <h3 className="text-3xl lg:text-5xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Study <span className="italic text-primary">Trajectory</span></h3>
+                              <p className="mt-4 text-sm text-zinc-500 max-w-xl">A specialized execution path derived from your content volume, optimized for retention.</p>
+                           </div>
+                           <div className="bg-white/40 p-1 rounded-[2.5rem] border border-[#160E0C08] overflow-hidden">
+                              <Mermaid chart={note.roadmap || "graph TD\n  Start[Begin Study] --> Review[Review Notes]\n  Review --> Practice[Practice Quiz]\n  Practice --> Finish[Mastery]"} />
+                           </div>
+                        </div>
+                     )}
+
+                     {/* TAB: MINDMAP */}
+                     {activeTab === 'mindmap' && (
+                        <div className="glass-card p-6 md:p-12 rounded-[3.5rem] shadow-[0_48px_96px_-32px_rgba(0,0,0,0.06)] bg-white/40 backdrop-blur-3xl border border-white">
+                           <div className="mb-12">
+                              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-atelier-sage mb-2 block">Conceptual Architecture</span>
+                              <h3 className="text-3xl lg:text-5xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>Knowledge <span className="italic text-atelier-sage">Topography</span></h3>
+                              <p className="mt-4 text-sm text-zinc-500 max-w-xl">A hierarchical map of interconnected insights and their logical foundations.</p>
+                           </div>
+                           <div className="bg-white/40 p-1 rounded-[2.5rem] border border-[#160E0C08] overflow-hidden">
+                              <Mermaid chart={note.mind_map || "mindmap\n  root((Core Topic))\n    Concepts\n    Applications\n    Fundamentals"} />
                            </div>
                         </div>
                      )}
