@@ -11,10 +11,8 @@ import {
   Zap,
   Mic,
   Send,
-  User,
   Bot,
   Layers,
-  Loader2,
   X,
   ChevronRight,
   BrainCircuit,
@@ -31,7 +29,6 @@ import { studyApi } from '@/lib/api';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import ReactMarkdown from 'react-markdown';
-import ThemeToggle from '@/components/theme/ThemeToggle';
 import mermaid from 'mermaid';
 
 // Initialize Mermaid with a premium look
@@ -382,46 +379,6 @@ export default function NoteView({ id }: { id: string }) {
 
                      {/* TAB: ROADMAP */}
                      {activeTab === 'roadmap' && (
-                        <div className="glass-card p-8 lg:p-16 rounded-[3rem] shadow-xl text-center min-h-[500px] flex flex-col justify-center">
-                           <div className="mb-10">
-                              <h3 className="text-3xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Study <span className="italic">Trajectory</span></h3>
-                              <p className="text-sm text-muted-foreground">Lumina's suggested strategic path to mastering these concepts.</p>
-                           </div>
-                           <div className="p-8 bg-white/40 rounded-[2rem] border border-white shadow-inner">
-                             {note.roadmap ? (
-                                <Mermaid chart={note.roadmap} />
-                             ) : (
-                                <div className="py-20 flex flex-col items-center">
-                                   <RotateCcw className="w-10 h-10 text-muted-foreground opacity-20 mb-4 animate-spin-slow" />
-                                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Roadmap synthesis pending...</p>
-                                </div>
-                             )}
-                           </div>
-                        </div>
-                     )}
-
-                     {/* TAB: MIND MAP */}
-                     {activeTab === 'mindmap' && (
-                        <div className="glass-card p-8 lg:p-16 rounded-[3rem] shadow-xl text-center min-h-[500px] flex flex-col justify-center">
-                           <div className="mb-10">
-                              <h3 className="text-3xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Conceptual <span className="italic">Cartography</span></h3>
-                              <p className="text-sm text-muted-foreground">Neural mapping of the core relationships within this atelier piece.</p>
-                           </div>
-                           <div className="p-8 bg-white/40 rounded-[2rem] border border-white shadow-inner">
-                             {note.mind_map ? (
-                                <Mermaid chart={note.mind_map} />
-                             ) : (
-                                <div className="py-20 flex flex-col items-center">
-                                   <BrainCircuit className="w-10 h-10 text-muted-foreground opacity-20 mb-4" />
-                                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Mind map rendering initialization...</p>
-                                </div>
-                             )}
-                           </div>
-                        </div>
-                     )}
-
-                     {/* TAB: ROADMAP */}
-                     {activeTab === 'roadmap' && (
                         <div className="glass-card p-6 md:p-12 rounded-[3.5rem] shadow-[0_48px_96px_-32px_rgba(0,0,0,0.06)] bg-white/40 backdrop-blur-3xl border border-white">
                            <div className="mb-12">
                               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-2 block">Strategic Plan</span>
@@ -641,7 +598,8 @@ export default function NoteView({ id }: { id: string }) {
                               </div>
                            </div>
                         </div>
-                        </motion.div>
+                     )}
+                 </motion.div>
                </AnimatePresence>
             </div>
           </div>
@@ -720,10 +678,6 @@ export default function NoteView({ id }: { id: string }) {
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .shadow-glow { shadow: 0 0 40px var(--primary); }
       `}</style>
-    </div>
-  );
-}
-/style>
     </div>
   );
 }
