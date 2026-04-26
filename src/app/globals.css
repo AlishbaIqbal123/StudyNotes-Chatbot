@@ -1,0 +1,298 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: var(--primary);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+}
+
+:root {
+  --background: #FFFBF9;
+  --foreground: #160E0C;
+  --card: #FFFFFF;
+  --primary: #E60023;
+  --border: #D8D1CE; /* Darkened for visibility */
+  --muted: #f5f1f0; /* Darkened slightly */
+  --muted-foreground: #6B5B58;
+  --sidebar-bg: #1C1412; /* Dark sidebar for auth pages */
+  --sidebar-foreground: #FFFBF9;
+}
+
+.dark {
+  --background: #0F0807;
+  --foreground: #FFFBF9;
+  --card: #1C1412;
+  --primary: #FF385C;
+  --border: #2D1A12;
+  --muted: #1C1412;
+  --muted-foreground: #A89693;
+  --sidebar-bg: #160E0C;
+  --sidebar-foreground: #FFFBF9;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Manrope', sans-serif;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+h1, h2, h3 { font-family: 'Playfair Display', serif; }
+h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
+
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(22, 14, 12, 0.1);
+}
+
+.dark .glass {
+  background: rgba(28, 20, 18, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Utility Classes */
+.lumina-input {
+  width: 100%;
+  height: 3.75rem;
+  padding: 0 1.25rem;
+  background: var(--card);
+  color: var(--foreground);
+  border: 1.5px solid var(--border);
+  border-radius: 1.25rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.lumina-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: var(--background);
+  box-shadow: 0 0 0 5px rgba(230, 0, 35, 0.08);
+  transform: translateY(-1px);
+}
+
+.lumina-input-icon {
+  padding-left: 3rem;
+}
+
+.auth-split {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  min-height: 100vh;
+}
+
+@media (max-width: 1024px) {
+  .auth-split { grid-template-columns: 1fr; }
+  .auth-visual { display: none; }
+}
+
+.lumina-prose {
+  color: var(--foreground);
+}
+
+.lumina-prose h1, .lumina-prose h2, .lumina-prose h3 {
+  color: var(--foreground);
+}
+
+/* Premium Mermaid Styling */
+.mermaid svg {
+  font-family: 'Space Grotesk', sans-serif !important;
+  background: transparent !important;
+}
+
+/* Force Text Visibility & Background Transparency */
+.mermaid .nodeLabel, 
+.mermaid .label,
+.mermaid text,
+.mermaid span,
+.mermaid div,
+.mermaid .node text,
+.mermaid .edgeLabel,
+.mermaid .root .nodeLabel,
+.mermaid foreignObject div {
+  color: #160E0C !important; /* Default dark for light mode */
+  fill: #160E0C !important;
+  font-weight: 800 !important;
+  font-size: 14px !important;
+  letter-spacing: -0.01em !important;
+  opacity: 1 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.dark .mermaid .nodeLabel,
+.dark .mermaid .label,
+.dark .mermaid text,
+.dark .mermaid span,
+.dark .mermaid div,
+.dark .mermaid .node text,
+.dark .mermaid .edgeLabel,
+.dark .mermaid foreignObject div,
+.dark .mermaid .edgeLabel span {
+  color: #FFFBF9 !important; /* Pure light for dark mode */
+  fill: #FFFBF9 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Node Styling - Premium Pattern */
+.mermaid rect, 
+.mermaid circle, 
+.mermaid ellipse, 
+.mermaid polygon, 
+.mermaid path,
+.mermaid .section,
+.mermaid .mindmap-node rect,
+.mermaid .mindmap-node circle,
+.mermaid .label rect,
+.mermaid .edgeLabel rect {
+  fill: #FFFFFF !important; /* Pure white for light mode */
+  stroke: var(--primary) !important;
+  stroke-width: 2.5px !important;
+  rx: 8px !important; 
+  ry: 8px !important;
+}
+
+.dark .mermaid rect,
+.dark .mermaid circle,
+.dark .mermaid ellipse,
+.dark .mermaid polygon,
+.dark .mermaid path,
+.dark .mermaid .mindmap-node rect,
+.dark .mermaid .mindmap-node circle,
+.dark .mermaid .label rect,
+.dark .mermaid .edgeLabel rect,
+.dark .mermaid .node rect {
+  fill: #160E0C !important; /* Deep dark for dark mode */
+  stroke: var(--primary) !important;
+}
+
+/* Edge/Line Styling */
+.mermaid .edgePath .path,
+.mermaid .edge-thickness-normal,
+.mermaid .edge-thickness-thick,
+.mermaid .transition {
+  stroke: var(--primary) !important;
+  stroke-width: 3px !important;
+  stroke-opacity: 0.6 !important;
+}
+
+.mermaid .node:hover rect,
+.mermaid .node:hover circle,
+.mermaid .node:hover path {
+  fill: var(--primary) !important;
+  stroke: var(--primary) !important;
+  transform: translateY(-4px) !important;
+}
+
+.mermaid .node:hover .nodeLabel,
+.mermaid .node:hover text {
+  fill: white !important;
+  color: white !important;
+}
+
+/* Arrow/Marker Consistency */
+.mermaid marker,
+.mermaid .marker,
+.mermaid [id*="mermaid-arrow"] path {
+  fill: var(--primary) !important;
+  stroke: var(--primary) !important;
+  stroke-width: 0 !important;
+}
+
+.dark .mermaid [id*="mermaid-arrow"] path {
+  fill: var(--primary) !important;
+}
+
+/* Final Fallback for ghosting labels */
+.dark .mermaid .label div,
+.dark .mermaid .edgeLabel div,
+.dark .mermaid foreignObject div,
+.dark .mermaid foreignObject span,
+.dark .mermaid foreignObject p {
+  background-color: transparent !important;
+  background: transparent !important;
+  color: #FFFBF9 !important;
+}
+
+/* Animated Container Background */
+.mermaid-container {
+  background: radial-gradient(circle at 50% 50%, var(--primary-light), transparent 70%);
+  background-size: 200% 200%;
+  animation: bg-pulse 10s infinite alternate ease-in-out;
+}
+
+@keyframes bg-pulse {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+/* KaTeX Customizations */
+.katex {
+  font-size: 1.15em;
+  color: var(--foreground);
+}
+
+.katex-display {
+  margin: 2.5rem 0;
+  padding: 2rem;
+  background: var(--muted);
+  border-radius: 1.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.dark .katex-display {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Nested Markdown Lists Indentation & Markers */
+.lumina-prose ul ul, 
+.lumina-prose ol ul, 
+.lumina-prose ul ol, 
+.lumina-prose ol ol {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  margin-left: 1.5rem;
+  border-left: 1px solid var(--border);
+  padding-left: 1.5rem;
+}
+
+.lumina-prose li > div > ul > li::before {
+  content: "";
+  position: absolute;
+  left: -1.5rem;
+  top: 0.75rem;
+  width: 0.5rem;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Table Enhancements */
+.lumina-prose table {
+  width: 100%;
+  border-spacing: 0;
+}
+
+.lumina-prose th {
+  background: var(--muted);
+  font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: 0.1em;
+}
+
+.lumina-prose tr:last-child td {
+  border-bottom: none;
+}
