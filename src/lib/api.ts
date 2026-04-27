@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://Alishba-1342-lumina-backend.hf.space';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -29,14 +29,22 @@ export const studyApi = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
 
-  processYoutube: (url: string, generationType: string = 'all') => {
+  async processYoutube(url: string, generationType: string = 'all', videoTitle?: string, channelName?: string) {
     const formData = new FormData();
     formData.append('type', 'youtube');
     formData.append('url', url);
     formData.append('generation_type', generationType);
-    return api.post('/process', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+    if (videoTitle) formData.append('video_title', videoTitle);
+    if (channelName) formData.append('channel_name', channelName);
+    
+    const response = await fetch(`${API_BASE_URL}/process`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        ...(typeof window !== 'undefined' && localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {})
+      }
     });
+    return response.json();
   },
 
   processText: (text: string, generationType: string = 'all') => {
@@ -72,6 +80,24 @@ export const studyApi = {
     formData.append('context', context);
     formData.append('history', JSON.stringify(history));
     return api.post('/chat', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+
+  generateMoreQuiz: (sourceText: string, existingQuestions: any[] = []) => {
+    const formData = new FormData();
+    formData.append('source_text', sourceText);
+    formData.append('existing_questions', JSON.stringify(existingQuestions));
+    return api.post('/generate-more-quiz', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+
+  generateMoreFlashcards: (sourceText: string, existingCards: any[] = []) => {
+    const formData = new FormData();
+    formData.append('source_text', sourceText);
+    formData.append('existing_cards', JSON.stringify(existingCards));
+    return api.post('/generate-more-flashcards', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },

@@ -150,7 +150,7 @@ export default function AuthLayout({ children, title, subtitle, variant = 'login
         initial={{ opacity: 0, x: 24 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        className="flex flex-col justify-center px-10 md:px-20 py-16 relative overflow-hidden"
+        className="flex flex-col justify-center px-8 md:px-16 py-12 relative overflow-hidden"
         style={{ background: 'var(--background)' }}
       >
         {/* Subtle bg orb */}

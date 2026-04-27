@@ -58,6 +58,10 @@ export default function UploadPage() {
   const [showLimitModal, setShowLimitModal] = useState(false);
 
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [videoTitle, setVideoTitle] = useState('');
+  const [channelName, setChannelName] = useState('');
+  const [manualTranscript, setManualTranscript] = useState('');
+  const [showManualInput, setShowManualInput] = useState(false);
   const [rawText, setRawText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -111,10 +115,15 @@ export default function UploadPage() {
     try {
       let response;
       if (type === 'youtube') {
-        if (!youtubeUrl.includes('youtube.com') && !youtubeUrl.includes('youtu.be')) {
-          throw new Error('Please provide a valid YouTube URL.');
+        if (showManualInput && manualTranscript.length > 50) {
+          response = await studyApi.processText(manualTranscript, generationType);
+        } else {
+          if (!youtubeUrl.includes('youtube.com') && !youtubeUrl.includes('youtu.be')) {
+            throw new Error('Please provide a valid YouTube URL.');
+          }
+          // Pass title and channel to the API
+          response = await (studyApi as any).processYoutube(youtubeUrl, generationType, videoTitle, channelName);
         }
-        response = await studyApi.processYoutube(youtubeUrl, generationType);
       }
       else if (type === 'text') {
         if (rawText.length < 50) throw new Error('Input text is too brief (min 50 chars).');
@@ -276,11 +285,55 @@ export default function UploadPage() {
                        <button disabled={!file} onClick={() => handleProcess('file')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Initiate Synthesis</button>
                     </motion.div>
                   )}
-                  {activeTab === 'youtube' && (
+                   {activeTab === 'youtube' && (
                     <motion.div key="y" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
-                       <div className="mb-10 text-left"><h3 className="text-2xl font-bold mb-2">YouTube Link</h3><p className="text-sm text-muted-foreground">Extract knowledge from lectures.</p></div>
-                       <input type="url" placeholder="Paste link..." className="w-full bg-muted rounded-2xl px-6 py-5 text-sm outline-none focus:ring-2 focus:ring-primary/20" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} />
-                       <div className="flex-1" />
+                       <div className="mb-10 text-left">
+                          <h3 className="text-2xl font-bold mb-2">YouTube Link</h3>
+                          <p className="text-sm text-muted-foreground">Extract knowledge from lectures.</p>
+                       </div>
+                       
+                       {!showManualInput ? (
+                         <div className="space-y-4">
+                           <div className="space-y-1.5">
+                             <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Link</p>
+                             <input type="url" placeholder="Paste YouTube link..." className="w-full bg-muted rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/20" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} />
+                           </div>
+                           
+                           <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-1.5">
+                               <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Title (Help AI)</p>
+                               <input type="text" placeholder="e.g. E-commerce Class 1" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} />
+                             </div>
+                             <div className="space-y-1.5">
+                               <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Channel Name</p>
+                               <input type="text" placeholder="e.g. MIT OpenCourseWare" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={channelName} onChange={e => setChannelName(e.target.value)} />
+                             </div>
+                           </div>
+
+                           <button 
+                             onClick={() => setShowManualInput(true)}
+                             className="mt-2 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
+                           >
+                             Link not working? Paste transcript manually
+                           </button>
+                         </div>
+                       ) : (
+                         <>
+                           <textarea 
+                             className="w-full min-h-[200px] bg-muted rounded-[2rem] p-6 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" 
+                             placeholder="Paste the video transcript here..." 
+                             value={manualTranscript} 
+                             onChange={e => setManualTranscript(e.target.value)} 
+                           />
+                           <button 
+                             onClick={() => setShowManualInput(false)}
+                             className="mt-4 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
+                           >
+                             Back to Link Mode
+                           </button>
+                         </>
+                       )}
+
                        <div className="mt-10 mb-6">
                           <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -297,7 +350,13 @@ export default function UploadPage() {
                             ))}
                           </div>
                        </div>
-                       <button disabled={!youtubeUrl} onClick={() => handleProcess('youtube')} className="w-full py-5 bg-[#3B9BC8] text-white rounded-[1.5rem] font-bold shadow-lg disabled:opacity-30">Transduce Video</button>
+                       <button 
+                         disabled={showManualInput ? manualTranscript.length < 50 : !youtubeUrl} 
+                         onClick={() => handleProcess('youtube')} 
+                         className="w-full py-5 bg-[#3B9BC8] text-white rounded-[1.5rem] font-bold shadow-lg disabled:opacity-30"
+                       >
+                         {showManualInput ? 'Synthesize Transcript' : 'Transduce Video'}
+                       </button>
                     </motion.div>
                   )}
                   {activeTab === 'text' && (

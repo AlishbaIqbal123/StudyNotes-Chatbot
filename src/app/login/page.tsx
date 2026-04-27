@@ -143,25 +143,25 @@ export default function LoginPage() {
           id="login-submit"
           disabled={isSubmitting}
           type="submit"
-          className="btn-primary w-full py-4 text-base mt-2"
+          className="btn-primary w-full h-14 text-base mt-4 shadow-xl"
         >
           {isSubmitting ? (
             <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
-            <>Log In <ArrowRight className="w-4 h-4" /></>
+            <>Log In <ArrowRight className="w-4.5 h-4.5 ml-1" /></>
           )}
         </button>
 
         {/* Divider */}
-        <div className="relative py-2 flex items-center gap-4">
-          <div className="flex-1 h-px" style={{ background: 'var(--border-faint)' }} />
+        <div className="relative py-4 flex items-center gap-4">
+          <div className="flex-1 h-px bg-border/40" />
           <span
-            className="text-xs font-bold uppercase tracking-widest"
+            className="text-[10px] font-black uppercase tracking-[0.2em]"
             style={{ color: 'var(--muted-foreground)', fontFamily: "'Space Grotesk', sans-serif" }}
           >
-            Or continue with
+            Or secure access via
           </span>
-          <div className="flex-1 h-px" style={{ background: 'var(--border-faint)' }} />
+          <div className="flex-1 h-px bg-border/40" />
         </div>
 
         {/* Google */}
@@ -170,19 +170,14 @@ export default function LoginPage() {
           type="button"
           onClick={handleGoogleLogin}
           disabled={googleLoading}
-          className="w-full h-14 rounded-2xl flex items-center justify-center gap-3 font-semibold text-sm transition-all hover:scale-[1.01] active:scale-95"
-          style={{
-            background: 'var(--surface-container-low)',
-            color: 'var(--foreground)',
-            border: '1px solid var(--border-faint)',
-            fontFamily: "'Space Grotesk', sans-serif",
-          }}
+          className="btn-secondary w-full h-14"
+          style={{ fontFamily: "'Space Grotesk', sans-serif" }}
         >
           {googleLoading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
             <>
-              <Globe className="w-5 h-5" />
+              <Globe className="w-5 h-5 opacity-70" />
               Continue with Google
             </>
           )}
