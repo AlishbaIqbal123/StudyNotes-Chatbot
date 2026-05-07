@@ -21,8 +21,10 @@ export interface NoteData {
   roadmap: string;
   mind_map: string;
   podcast_script: string;
+  visual_prompt: string;
   visual_style_prompt: string;
   source_type?: string;
+  raw_text?: string;
   timestamp?: any;
 }
 

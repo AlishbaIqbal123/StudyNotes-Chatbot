@@ -1,49 +1,80 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload as UploadIcon, Video, FileText, Type, Sparkles,
-  CheckCircle2, ArrowRight, Brain, Zap, Globe, AlertCircle, X,
-  Lock, UserPlus, LogIn
+  CheckCircle2, Brain, AlertCircle, X, Lock, RefreshCw
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { studyApi } from '@/lib/api';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
+import RateLimitModal from '@/components/notes/RateLimitModal';
+
+// ── Error classifier ──────────────────────────────────────────────────────────
+interface ClassifiedError {
+  message: string;
+  isRateLimit: boolean;
+  isRetryable: boolean;
+}
+
+function classifyError(err: any): ClassifiedError {
+  const status = err?.response?.status;
+  const detail = (err?.response?.data?.detail || err?.message || '').toLowerCase();
+
+  if (status === 429) {
+    return { message: '', isRateLimit: true, isRetryable: false };
+  }
+  if (!err?.response && (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network'))) {
+    return {
+      message: 'Network error — please check your connection and try again.',
+      isRateLimit: false,
+      isRetryable: true,
+    };
+  }
+  if (status === 400 && (detail.includes('transcript') || detail.includes('youtube') || detail.includes('caption'))) {
+    return {
+      message: 'Could not extract the video transcript. Try pasting the transcript manually using the link below.',
+      isRateLimit: false,
+      isRetryable: false,
+    };
+  }
+  if (status === 400 && (detail.includes('too short') || detail.includes('minimum') || detail.includes('insufficient'))) {
+    return {
+      message: 'The extracted content is too short. Please provide more detailed source material.',
+      isRateLimit: false,
+      isRetryable: false,
+    };
+  }
+  if (status === 500) {
+    return {
+      message: 'The AI service encountered an unexpected error. Please try again in a moment.',
+      isRateLimit: false,
+      isRetryable: true,
+    };
+  }
+  return {
+    message: err?.response?.data?.detail || err?.message || 'An unexpected error occurred. Please try again.',
+    isRateLimit: false,
+    isRetryable: false,
+  };
+}
 
 const inputTypes = [
-  {
-    id: 'upload' as const,
-    label: 'Document',
-    icon: FileText,
-    desc: 'PDF, DOCX, Images',
-    color: '#E60023',
-  },
-  {
-    id: 'youtube' as const,
-    label: 'YouTube',
-    icon: Video,
-    desc: 'Lecture / Video link',
-    color: '#3B9BC8',
-  },
-  {
-    id: 'text' as const,
-    label: 'Deep Text',
-    icon: Type,
-    desc: 'Raw notes / Abstract',
-    color: '#5E7B5A',
-  },
+  { id: 'upload' as const, label: 'Document', icon: FileText, desc: 'PDF, DOCX, PPTX, TXT', color: '#E60023' },
+  { id: 'youtube' as const, label: 'YouTube', icon: Video, desc: 'Lecture / Video link', color: '#3B9BC8' },
+  { id: 'text' as const, label: 'Deep Text', icon: Type, desc: 'Raw notes / Abstract', color: '#5E7B5A' },
 ] as const;
 
 const steps = [
   'Initializing Atelier Environment...',
   'Extracting Raw Content...',
-  'Deep Researching via Tavily...',
-  'Synthesizing Insights & Visuals...',
+  'Synthesizing with Gemini 2.5 Pro...',
+  'Building Study Materials...',
   'Finalizing Your Study Board...'
 ];
 
@@ -55,7 +86,9 @@ export default function UploadPage() {
   const [stepIdx, setStepIdx] = useState(0);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [isRetryable, setIsRetryable] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [existingNotesCount, setExistingNotesCount] = useState<number | undefined>(undefined);
 
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [videoTitle, setVideoTitle] = useState('');
@@ -66,6 +99,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [generationType, setGenerationType] = useState('all');
+  const [lastProcessType, setLastProcessType] = useState<string>('');
 
   const generationOptions = [
     { id: 'all', label: 'Full Mastery Package', desc: 'Notes, Quiz, Flashcards, Roadmap, Audio' },
@@ -74,6 +108,17 @@ export default function UploadPage() {
     { id: 'flashcards', label: 'Flashcard Deck only', desc: '25-30+ recall cards' },
     { id: 'podcast', label: 'Audio Labs only', desc: 'Deep-dive podcast script' },
   ];
+
+  const getExistingNotesCount = async (): Promise<number> => {
+    try {
+      if (user) {
+        const q = query(collection(db, 'notes'), where('userId', '==', user.id));
+        const snap = await getDocs(q);
+        return snap.size;
+      }
+      return Object.keys(localStorage).filter(k => k.startsWith('lumina_guest_note_')).length;
+    } catch { return 0; }
+  };
 
   const simulateProgress = () => {
     let p = 0;
@@ -92,6 +137,7 @@ export default function UploadPage() {
 
   const handleProcess = async (type: string) => {
     if (loading) return;
+    setLastProcessType(type);
 
     if (!user) {
       const guestCount = parseInt(localStorage.getItem('lumina_guest_gen_count') || '0');
@@ -100,7 +146,7 @@ export default function UploadPage() {
         return;
       }
     }
-    
+
     if (type === 'file' && file && file.size > 15 * 1024 * 1024) {
       setError('Content volume exceeds atelier capacity (15MB limit).');
       return;
@@ -138,12 +184,16 @@ export default function UploadPage() {
       setProgress(100);
       setStepIdx(steps.length - 1);
 
-      if (response?.data) {
+      // Normalise response — axios wraps in {data}, fetch returns raw JSON
+      const responseData = response?.data ?? response;
+
+      if (responseData && responseData.status === 'completed') {
         const noteData = {
-          ...response.data,
+          ...responseData,
           userId: user?.id || 'guest',
           createdAt: new Date().toISOString(),
           source_type: type,
+          source_text: responseData.source_text || responseData.raw_text || '',
           status: 'completed',
         };
 
@@ -161,12 +211,22 @@ export default function UploadPage() {
           localStorage.setItem('lumina_guest_gen_count', (currentCount + 1).toString());
         }
 
-        setTimeout(() => router.push(`/notes?id=${noteId}`), 1200);
+        setTimeout(() => router.push(`/notes?id=${noteId}`), 800);
+      } else {
+        // Response came back but status isn't 'completed'
+        throw new Error(responseData?.detail || 'Generation failed. Please try again.');
       }
     } catch (err: any) {
       clearInterval(iv);
-      const msg = err?.response?.data?.detail || err?.message || 'The atelier encountered an error. Please try again.';
-      setError(msg);
+      const classified = classifyError(err);
+      if (classified.isRateLimit) {
+        const count = await getExistingNotesCount();
+        setExistingNotesCount(count);
+        setShowLimitModal(true);
+      } else {
+        setError(classified.message);
+        setIsRetryable(classified.isRetryable);
+      }
       setLoading(false);
       setProgress(0);
       setStepIdx(0);
@@ -176,25 +236,17 @@ export default function UploadPage() {
   return (
     <DashboardLayout>
       <div className="relative max-w-5xl mx-auto py-6">
-        
-        {/* Limit Modal */}
+
+        {/* Rate Limit Modal */}
+        <RateLimitModal
+          isOpen={showLimitModal}
+          onClose={() => setShowLimitModal(false)}
+          existingNotesCount={existingNotesCount}
+        />
+
+        {/* Guest limit modal (1 free generation) */}
         <AnimatePresence>
-          {showLimitModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLimitModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-md" />
-               <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-md bg-card rounded-[3rem] p-10 shadow-2xl border border-border text-center overflow-hidden">
-                  <div className="w-20 h-20 bg-primary/10 rounded-[2rem] flex items-center justify-center mx-auto mb-8">
-                     <Lock className="w-8 h-8 text-primary" />
-                  </div>
-                  <h3 className="text-3xl font-bold mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>Limit <span className="italic">Reached</span></h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-10">Free guest access is exhausted. Unlock unlimited research by joining the atelier.</p>
-                  <div className="grid gap-3">
-                     <Link href="/signup" className="flex items-center justify-center gap-2 w-full py-4 bg-primary text-white rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl">Initialize Account</Link>
-                     <Link href="/login" className="flex items-center justify-center gap-2 w-full py-4 bg-background border border-border text-foreground rounded-full font-black text-[10px] uppercase tracking-widest">Returning Member</Link>
-                  </div>
-               </motion.div>
-            </div>
-          )}
+          {false && <div />}
         </AnimatePresence>
 
         {/* Page Header */}
@@ -207,7 +259,7 @@ export default function UploadPage() {
             New Study <span className="italic">Session</span>
           </h1>
           <p className="text-lg max-w-2xl text-muted-foreground">Transform source material into research-backed notes.</p>
-          
+
           <AnimatePresence>
             {error && (
               <motion.div
@@ -218,11 +270,19 @@ export default function UploadPage() {
               >
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <div className="flex-1">
-                   <p className="text-xs font-black uppercase tracking-widest mb-1">Synthesis Failure</p>
-                   <p className="text-sm font-medium">{error}</p>
+                  <p className="text-xs font-black uppercase tracking-widest mb-1">Synthesis Failure</p>
+                  <p className="text-sm font-medium">{error}</p>
+                  {isRetryable && (
+                    <button
+                      onClick={() => handleProcess(lastProcessType || activeTab)}
+                      className="mt-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Retry
+                    </button>
+                  )}
                 </div>
                 <button onClick={() => setError(null)} className="p-1 hover:bg-red-500/10 rounded-lg">
-                   <X className="w-4 h-4" />
+                  <X className="w-4 h-4" />
                 </button>
               </motion.div>
             )}
@@ -230,178 +290,178 @@ export default function UploadPage() {
         </div>
 
         {/* Workspace */}
-        {!loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            <div className="lg:col-span-4 space-y-3">
-              {inputTypes.map((tab) => (
-                <button
-                  key={tab.id} onClick={() => setActiveTab(tab.id)}
-                  className={`group w-full relative p-6 rounded-[2rem] transition-all duration-300 ${
-                    activeTab === tab.id ? 'bg-card shadow-xl border-primary/30 border' : 'bg-card/40 hover:bg-card border border-border'
-                  }`}
-                >
-                  <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors"
-                         style={{ background: activeTab === tab.id ? tab.color : 'var(--muted)', color: activeTab === tab.id ? 'white' : 'var(--muted-foreground)' }}>
-                      <tab.icon className="w-5 h-5" />
+        {
+          !loading && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              <div className="lg:col-span-4 space-y-3">
+                {inputTypes.map((tab) => (
+                  <button
+                    key={tab.id} onClick={() => setActiveTab(tab.id)}
+                    className={`group w-full relative p-6 rounded-[2rem] transition-all duration-300 ${activeTab === tab.id ? 'bg-card shadow-xl border-primary/30 border' : 'bg-card/40 hover:bg-card border border-border'
+                      }`}
+                  >
+                    <div className="flex items-center gap-5">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors"
+                        style={{ background: activeTab === tab.id ? tab.color : 'var(--muted)', color: activeTab === tab.id ? 'white' : 'var(--muted-foreground)' }}>
+                        <tab.icon className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-bold text-sm mb-0.5">{tab.label}</h4>
+                        <p className="text-[10px] uppercase tracking-widest opacity-40 font-black">{tab.desc}</p>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <h4 className="font-bold text-sm mb-0.5">{tab.label}</h4>
-                      <p className="text-[10px] uppercase tracking-widest opacity-40 font-black">{tab.desc}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+                  </button>
+                ))}
+              </div>
 
-            <div className="lg:col-span-8">
-              <div className="bg-card min-h-[450px] rounded-[2.5rem] border border-border p-8 lg:p-12 shadow-sm">
-                <AnimatePresence mode="wait">
-                  {activeTab === 'upload' && (
-                    <motion.div key="u" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
-                       <div className="mb-10 text-left"><h3 className="text-2xl font-bold mb-2">Ingest Document</h3><p className="text-sm text-muted-foreground">PDF, DOCX, or Images supported.</p></div>
-                       <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
-                         className={`relative flex-1 border-2 border-dashed rounded-[2rem] transition-all flex flex-col items-center justify-center p-10 ${dragOver || file ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>
-                          <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept=".pdf,.docx,.doc,.txt" onChange={e => setFile(e.target.files?.[0] || null)} />
+              <div className="lg:col-span-8">
+                <div className="bg-card min-h-[450px] rounded-[2.5rem] border border-border p-8 lg:p-12 shadow-sm">
+                  <AnimatePresence mode="wait">
+                    {activeTab === 'upload' && (
+                      <motion.div key="u" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
+                        <div className="mb-10 text-left"><h3 className="text-2xl font-bold mb-2">Ingest Document</h3><p className="text-sm text-muted-foreground">PDF, DOCX, PPTX, or TXT supported.</p></div>
+                        <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
+                          className={`relative flex-1 border-2 border-dashed rounded-[2rem] transition-all flex flex-col items-center justify-center p-10 ${dragOver || file ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>
+                          <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md" onChange={e => setFile(e.target.files?.[0] || null)} />
                           <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-6">{file ? <CheckCircle2 className="w-8 h-8 text-primary" /> : <UploadIcon className="w-8 h-8 opacity-20" />}</div>
                           <span className="text-lg font-bold">{file ? file.name : 'Drop File Here'}</span>
-                       </div>
-                       <div className="mt-10 mb-6">
+                        </div>
+                        <div className="mt-10 mb-6">
                           <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {generationOptions.map(opt => (
-                              <button 
+                              <button
                                 key={opt.id} onClick={() => setGenerationType(opt.id)}
-                                className={`text-left p-4 rounded-2xl border transition-all ${
-                                  generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
-                                }`}
+                                className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
+                                  }`}
                               >
                                 <p className="text-xs font-bold mb-0.5">{opt.label}</p>
                                 <p className="text-[9px] text-muted-foreground">{opt.desc}</p>
                               </button>
                             ))}
                           </div>
-                       </div>
-                       <button disabled={!file} onClick={() => handleProcess('file')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Initiate Synthesis</button>
-                    </motion.div>
-                  )}
-                   {activeTab === 'youtube' && (
-                    <motion.div key="y" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
-                       <div className="mb-10 text-left">
+                        </div>
+                        <button disabled={!file} onClick={() => handleProcess('file')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Initiate Synthesis</button>
+                      </motion.div>
+                    )}
+                    {activeTab === 'youtube' && (
+                      <motion.div key="y" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
+                        <div className="mb-10 text-left">
                           <h3 className="text-2xl font-bold mb-2">YouTube Link</h3>
                           <p className="text-sm text-muted-foreground">Extract knowledge from lectures.</p>
-                       </div>
-                       
-                       {!showManualInput ? (
-                         <div className="space-y-4">
-                           <div className="space-y-1.5">
-                             <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Link</p>
-                             <input type="url" placeholder="Paste YouTube link..." className="w-full bg-muted rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/20" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} />
-                           </div>
-                           
-                           <div className="grid grid-cols-2 gap-4">
-                             <div className="space-y-1.5">
-                               <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Title (Help AI)</p>
-                               <input type="text" placeholder="e.g. E-commerce Class 1" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} />
-                             </div>
-                             <div className="space-y-1.5">
-                               <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Channel Name</p>
-                               <input type="text" placeholder="e.g. MIT OpenCourseWare" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={channelName} onChange={e => setChannelName(e.target.value)} />
-                             </div>
-                           </div>
+                        </div>
 
-                           <button 
-                             onClick={() => setShowManualInput(true)}
-                             className="mt-2 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
-                           >
-                             Link not working? Paste transcript manually
-                           </button>
-                         </div>
-                       ) : (
-                         <>
-                           <textarea 
-                             className="w-full min-h-[200px] bg-muted rounded-[2rem] p-6 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" 
-                             placeholder="Paste the video transcript here..." 
-                             value={manualTranscript} 
-                             onChange={e => setManualTranscript(e.target.value)} 
-                           />
-                           <button 
-                             onClick={() => setShowManualInput(false)}
-                             className="mt-4 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
-                           >
-                             Back to Link Mode
-                           </button>
-                         </>
-                       )}
+                        {!showManualInput ? (
+                          <div className="space-y-4">
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Link</p>
+                              <input type="url" placeholder="Paste YouTube link..." className="w-full bg-muted rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/20" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} />
+                            </div>
 
-                       <div className="mt-10 mb-6">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Title (Help AI)</p>
+                                <input type="text" placeholder="e.g. E-commerce Class 1" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} />
+                              </div>
+                              <div className="space-y-1.5">
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Channel Name</p>
+                                <input type="text" placeholder="e.g. MIT OpenCourseWare" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={channelName} onChange={e => setChannelName(e.target.value)} />
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => setShowManualInput(true)}
+                              className="mt-2 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
+                            >
+                              Link not working? Paste transcript manually
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <textarea
+                              className="w-full min-h-[200px] bg-muted rounded-[2rem] p-6 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                              placeholder="Paste the video transcript here..."
+                              value={manualTranscript}
+                              onChange={e => setManualTranscript(e.target.value)}
+                            />
+                            <button
+                              onClick={() => setShowManualInput(false)}
+                              className="mt-4 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
+                            >
+                              Back to Link Mode
+                            </button>
+                          </>
+                        )}
+
+                        <div className="mt-10 mb-6">
                           <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {generationOptions.map(opt => (
-                              <button 
+                              <button
                                 key={opt.id} onClick={() => setGenerationType(opt.id)}
-                                className={`text-left p-4 rounded-2xl border transition-all ${
-                                  generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
-                                }`}
+                                className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
+                                  }`}
                               >
                                 <p className="text-xs font-bold mb-0.5">{opt.label}</p>
                                 <p className="text-[9px] text-muted-foreground">{opt.desc}</p>
                               </button>
                             ))}
                           </div>
-                       </div>
-                       <button 
-                         disabled={showManualInput ? manualTranscript.length < 50 : !youtubeUrl} 
-                         onClick={() => handleProcess('youtube')} 
-                         className="w-full py-5 bg-[#3B9BC8] text-white rounded-[1.5rem] font-bold shadow-lg disabled:opacity-30"
-                       >
-                         {showManualInput ? 'Synthesize Transcript' : 'Transduce Video'}
-                       </button>
-                    </motion.div>
-                  )}
-                  {activeTab === 'text' && (
-                    <motion.div key="t" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
-                       <div className="mb-10 text-left"><h3 className="text-2xl font-bold mb-2">Deep Text</h3><p className="text-sm text-muted-foreground">Synthesize raw thoughts.</p></div>
-                       <textarea className="flex-1 min-h-[250px] w-full bg-muted rounded-[2rem] p-8 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" placeholder="Paste content..." value={rawText} onChange={e => setRawText(e.target.value)} />
-                       <div className="mt-10 mb-6">
+                        </div>
+                        <button
+                          disabled={showManualInput ? manualTranscript.length < 50 : !youtubeUrl}
+                          onClick={() => handleProcess('youtube')}
+                          className="w-full py-5 bg-[#3B9BC8] text-white rounded-[1.5rem] font-bold shadow-lg disabled:opacity-30"
+                        >
+                          {showManualInput ? 'Synthesize Transcript' : 'Transduce Video'}
+                        </button>
+                      </motion.div>
+                    )}
+                    {activeTab === 'text' && (
+                      <motion.div key="t" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
+                        <div className="mb-10 text-left"><h3 className="text-2xl font-bold mb-2">Deep Text</h3><p className="text-sm text-muted-foreground">Synthesize raw thoughts.</p></div>
+                        <textarea className="flex-1 min-h-[250px] w-full bg-muted rounded-[2rem] p-8 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" placeholder="Paste content..." value={rawText} onChange={e => setRawText(e.target.value)} />
+                        <div className="mt-10 mb-6">
                           <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {generationOptions.map(opt => (
-                              <button 
+                              <button
                                 key={opt.id} onClick={() => setGenerationType(opt.id)}
-                                className={`text-left p-4 rounded-2xl border transition-all ${
-                                  generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
-                                }`}
+                                className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
+                                  }`}
                               >
                                 <p className="text-xs font-bold mb-0.5">{opt.label}</p>
                                 <p className="text-[9px] text-muted-foreground">{opt.desc}</p>
                               </button>
                             ))}
                           </div>
-                       </div>
-                       <button disabled={rawText.length < 50} onClick={() => handleProcess('text')} className="w-full py-5 bg-[#5E7B5A] text-white rounded-[1.5rem] font-bold shadow-lg disabled:opacity-30">Harmonize Concepts</button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                        </div>
+                        <button disabled={rawText.length < 50} onClick={() => handleProcess('text')} className="w-full py-5 bg-[#5E7B5A] text-white rounded-[1.5rem] font-bold shadow-lg disabled:opacity-30">Harmonize Concepts</button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )
+        }
 
         {/* Loading */}
-        {loading && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card rounded-[3rem] p-20 flex flex-col items-center border border-border shadow-xl">
-             <div className="w-32 h-32 rounded-full border-2 border-primary/10 flex items-center justify-center mb-10 relative">
+        {
+          loading && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card rounded-[3rem] p-20 flex flex-col items-center border border-border shadow-xl">
+              <div className="w-32 h-32 rounded-full border-2 border-primary/10 flex items-center justify-center mb-10 relative">
                 <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 8, ease: "linear" }} className="absolute inset-0 border-t-2 border-primary rounded-full" />
                 <Brain className="w-12 h-12 text-primary animate-pulse" />
-             </div>
-             <h2 className="text-3xl font-bold mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>{steps[stepIdx]}</h2>
-             <div className="w-full max-w-sm h-1.5 bg-muted rounded-full overflow-hidden">
+              </div>
+              <h2 className="text-3xl font-bold mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>{steps[stepIdx]}</h2>
+              <div className="w-full max-w-sm h-1.5 bg-muted rounded-full overflow-hidden">
                 <motion.div className="h-full bg-primary" animate={{ width: `${progress}%` }} />
-             </div>
-          </motion.div>
-        )}
-      </div>
-    </DashboardLayout>
+              </div>
+            </motion.div>
+          )
+        }
+      </div >
+    </DashboardLayout >
   );
 }

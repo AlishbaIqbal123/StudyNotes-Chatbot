@@ -145,51 +145,89 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
 
 .lumina-prose {
   color: var(--foreground);
-  line-height: 1.7;
-  font-size: 1rem; /* Normal Text */
+  line-height: 1.75;
+  font-size: 1rem;
 }
 
 .lumina-prose h1 {
-  font-size: 3rem; /* Bigger but not too big */
+  font-size: 2.4rem;
   font-weight: 900;
-  letter-spacing: -0.04em;
-  margin-top: 3rem;
-  margin-bottom: 2rem;
-  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-top: 2.5rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.15;
   font-family: 'Space Grotesk', sans-serif;
 }
 
+/* First h1 needs no top margin */
+.lumina-prose h1:first-child {
+  margin-top: 0;
+}
+
 .lumina-prose h2 {
-  font-size: 1.5rem; /* Shorter and bold */
+  font-size: 1.45rem;
   font-weight: 800;
   letter-spacing: -0.01em;
-  margin-top: 2.5rem;
-  margin-bottom: 1rem;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
   color: var(--primary);
   font-family: 'Space Grotesk', sans-serif;
 }
 
 .lumina-prose h3 {
-  font-size: 1.25rem; /* Shorter and bold */
+  font-size: 1.15rem;
   font-weight: 700;
-  margin-top: 2rem;
-  margin-bottom: 0.75rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
   font-family: 'Space Grotesk', sans-serif;
 }
 
+.lumina-prose h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.4rem;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--muted-foreground);
+}
+
 .lumina-prose p {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
   opacity: 0.9;
   font-weight: 400;
+  line-height: 1.8;
+}
+
+/* Tighten spacing when a paragraph immediately follows a heading */
+.lumina-prose h2 + p,
+.lumina-prose h3 + p,
+.lumina-prose h4 + p {
+  margin-top: 0;
 }
 
 .lumina-prose ul, .lumina-prose ol {
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
   padding-left: 1.5rem;
 }
 
 .lumina-prose li {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.7;
+}
+
+/* Gap after Mermaid diagram wrappers before next element */
+.lumina-prose .mermaid-wrapper {
+  margin-bottom: 2rem;
+}
+
+/* Ensure space after any div (mermaid/code) before next heading or paragraph */
+.lumina-prose div + h2,
+.lumina-prose div + h3 {
+  margin-top: 2rem;
+}
+
+.lumina-prose div + p {
+  margin-top: 0.5rem;
 }
 
 /* Premium Mermaid Styling */
@@ -368,41 +406,130 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
 /* Table Enhancements */
 .lumina-prose table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  margin: 2.5rem 0;
-  border: 1px solid var(--border);
-  border-radius: 1.5rem;
-  overflow: hidden;
+  border-collapse: collapse;
+  margin: 0;
   background: var(--card);
+  font-size: 0.875rem;
+  table-layout: auto;
+}
+
+.lumina-prose table + * {
+  margin-top: 0;
 }
 
 .lumina-prose th {
-  background: var(--muted);
-  padding: 1.25rem 1.5rem;
+  background: #1a1a2e;
+  color: #ffffff;
+  padding: 0.75rem 1rem;
   text-align: left;
   font-weight: 800;
-  font-size: 0.875rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.06em;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Column resize */
+  resize: horizontal;
+  min-width: 80px;
+  position: relative;
+}
+
+/* Resize grip indicator on th */
+.lumina-prose th::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  height: 50%;
+  width: 3px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  cursor: col-resize;
+}
+
+.lumina-prose th:last-child {
+  border-right: none;
+}
+
+.lumina-prose th:last-child::after {
+  display: none;
+}
+
+.dark .lumina-prose th {
+  background: #0d1117;
+  border-right-color: rgba(255, 255, 255, 0.08);
 }
 
 .lumina-prose td {
-  padding: 1.25rem 1.5rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border);
-  font-size: 1rem;
+  border-right: 1px solid var(--border);
+  font-size: 0.875rem;
+  vertical-align: top;
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.lumina-prose td:last-child {
+  border-right: none;
 }
 
 .lumina-prose tr:last-child td {
   border-bottom: none;
 }
 
+.lumina-prose tbody tr:hover td {
+  background: rgba(230, 0, 35, 0.03);
+}
+
+/* Table wrapper — full width, resizable by user */
+.lumina-prose .table-wrapper,
+.lumina-prose > div:has(table) {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(230, 0, 35, 0.15);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  resize: horizontal;
+  overflow: auto;
+  min-width: 200px;
+}
+
 .lumina-prose blockquote {
   border-left: 4px solid var(--primary);
   background: var(--muted);
-  padding: 2rem;
-  border-radius: 0 1.5rem 1.5rem 0;
-  margin: 2.5rem 0;
+  padding: 1rem 1.5rem;
+  border-radius: 0 1rem 1rem 0;
+  margin: 1.25rem 0;
   font-style: italic;
+  font-size: 0.975rem;
+  line-height: 1.7;
+}
+
+/* ── Flashcard 3D Flip ─────────────────────────────────────────────────────── */
+.flashcard-scene {
+  perspective: 1200px;
+}
+
+.flashcard-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.flashcard-card.flipped {
+  transform: rotateY(180deg);
+}
+
+.backface-hidden {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }

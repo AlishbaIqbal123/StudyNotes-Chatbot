@@ -1,1 +1,0 @@
-# LuminaStudy Server Package

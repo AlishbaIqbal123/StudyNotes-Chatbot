@@ -1,7 +1,8 @@
 // src/hooks/useChatHistory.ts
 import { useState, useCallback } from 'react';
 import { ChatMessage } from '@/types/note.types';
-import { studyApi } from '@/lib/api';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://Alishba-1342-lumina-backend.hf.space';
 
 export function useChatHistory(noteContent: string) {
   const [history, setHistory] = useState<ChatMessage[]>([]);
@@ -14,27 +15,94 @@ export function useChatHistory(noteContent: string) {
     setHistory(prev => [...prev, userMessage]);
     setLoading(true);
 
-    try {
-      const context = noteContent.slice(0, 8000);
-      const currentHistory = [...history, userMessage];
-      const historyList = currentHistory.slice(-6);
-      const response = await studyApi.chat(prompt, context, historyList as any);
+    // Add a placeholder assistant message that we'll stream into
+    const placeholderMsg: ChatMessage = { role: 'assistant', content: '' };
+    setHistory(prev => [...prev, placeholderMsg]);
 
-      if (response.data.error === "RATE_LIMIT_REACHED") {
-        setHistory(prev => prev.slice(0, -1)); // Remove the last user message
-        return { error: "RATE_LIMIT_REACHED" };
+    try {
+      const formData = new FormData();
+      formData.append('prompt', prompt);
+      formData.append('context', noteContent.slice(0, 8000));
+
+      const response = await fetch(`${API_BASE_URL}/chat`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.status === 429) {
+        // Remove placeholder
+        setHistory(prev => prev.slice(0, -1));
+        return { error: 'RATE_LIMIT_REACHED' };
       }
 
-      const assistantMessage: ChatMessage = { 
-        role: 'assistant', 
-        content: response.data.answer || "I could not process that." 
-      };
-      setHistory(prev => [...prev, assistantMessage]);
+      if (!response.ok || !response.body) {
+        setHistory(prev => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: 'Something went wrong. Please try again.' },
+        ]);
+        return { error: 'COMMUNICATION_ERROR' };
+      }
+
+      // Read SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (!raw) continue;
+
+          try {
+            const parsed = JSON.parse(raw);
+
+            if (parsed.error) {
+              if (parsed.error === 'RATE_LIMIT_REACHED') {
+                setHistory(prev => prev.slice(0, -2)); // remove user + placeholder
+                return { error: 'RATE_LIMIT_REACHED' };
+              }
+              setHistory(prev => [
+                ...prev.slice(0, -1),
+                { role: 'assistant', content: 'Something went wrong. Please try again.' },
+              ]);
+              return { error: 'COMMUNICATION_ERROR' };
+            }
+
+            if (parsed.token !== undefined) {
+              accumulated += parsed.token;
+              // Update the last message (placeholder) with accumulated text
+              setHistory(prev => [
+                ...prev.slice(0, -1),
+                { role: 'assistant', content: accumulated },
+              ]);
+            }
+
+            if (parsed.done) break;
+          } catch {
+            // Malformed JSON line — skip
+          }
+        }
+      }
+
       return { error: null };
-    } catch (err) {
+    } catch (err: any) {
       console.error('Chat error:', err);
-      setHistory(prev => [...prev, { role: 'assistant', content: "ERROR_BUBBLE" }]);
-      return { error: "COMMUNICATION_ERROR" };
+      if (err?.message?.includes('429') || err?.status === 429) {
+        setHistory(prev => prev.slice(0, -2));
+        return { error: 'RATE_LIMIT_REACHED' };
+      }
+      setHistory(prev => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', content: 'Something went wrong. Please try again.' },
+      ]);
+      return { error: 'COMMUNICATION_ERROR' };
     } finally {
       setLoading(false);
     }

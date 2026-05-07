@@ -30,8 +30,18 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — never commit secrets
+.env
+.env.local
+.env.production
+.env.development
+server/.env
+hf_final_deploy/.env
+hf_deploy/.env
+# Allow example/template files to be committed
+!.env.example
+!.env.local.example
+!hf_final_deploy/.env.example
 
 # vercel
 .vercel
@@ -56,3 +66,6 @@ server/app/services/__pycache__/
 .venv
 venv/
 ENV/
+hf_final_deploy/__pycache__/
+hf_final_deploy/app/__pycache__/
+hf_final_deploy/app/services/__pycache__/

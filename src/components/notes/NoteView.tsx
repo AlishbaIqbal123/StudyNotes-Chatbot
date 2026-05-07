@@ -1,12 +1,12 @@
 // src/components/notes/NoteView.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen, ChevronRight, BrainCircuit, Zap, Layers, Mic,
   Book, Trophy, Image as ImageIcon, X, Menu, GripVertical,
-  Plus, Loader2
+  Plus, Loader2, Play, Pause, Sparkles, Volume2, VolumeX
 } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
@@ -35,7 +35,7 @@ export default function NoteView({ id }: { id: string }) {
   const { note, loading, error, setNote } = useNoteData(id);
   const { history, loading: chatLoading, sendMessage } = useChatHistory(note?.simplified_notes || note?.simplified_content || '');
   const { width: sidebarWidth, startResizing } = useResizableSidebar(288, 200, 480);
-  
+
   const [activeTab, setActiveTab] = useState<TabType>('notes');
   const [chatPrompt, setChatPrompt] = useState('');
   const [isRateLimitOpen, setIsRateLimitOpen] = useState(false);
@@ -47,16 +47,216 @@ export default function NoteView({ id }: { id: string }) {
   const [generatingQuiz, setGeneratingQuiz] = useState(false);
   const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({});
 
+  // Audio Lab (TTS) States
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [speechProgress, setSpeechProgress] = useState(0)
+  const [ttsSpeed, setTtsSpeed] = useState(1)
+  const speedRef = useRef(1) // ref so speakChunk always reads latest speed
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const chunksRef = useRef<string[]>([])
+  const chunkIndexRef = useRef(0)
+  const totalCharsRef = useRef(0)
+  const spokenCharsRef = useRef(0)
+  const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const didStartRef = useRef(false) // guard against double-start
+
+  // ── Dialogue line type ──────────────────────────────────────────────────────
+  interface DialogueLine { speaker: 'MAYA' | 'ALEX' | 'OTHER'; text: string }
+
+  /** Parse the podcast script into per-speaker dialogue lines (no names spoken) */
+  const parseDialogue = (): DialogueLine[] => {
+    const raw = note?.podcast_script || note?.simplified_notes || note?.simplified_content || ''
+    const lines: DialogueLine[] = []
+    for (const line of raw.split('\n')) {
+      const clean = line.replace(/\*\*/g, '').replace(/\*/g, '').trim()
+      if (!clean) continue
+      const maya = clean.match(/^MAYA:\s*(.+)/i)
+      const alex = clean.match(/^ALEX:\s*(.+)/i)
+      if (maya) lines.push({ speaker: 'MAYA', text: maya[1].trim() })
+      else if (alex) lines.push({ speaker: 'ALEX', text: alex[1].trim() })
+      else {
+        // Non-dialogue line — strip markdown noise, skip if empty
+        const stripped = clean
+          .replace(/#{1,6}\s/g, '')
+          .replace(/`{1,3}/g, '')
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          .replace(/>\s/g, '')
+          .replace(/---+/g, '')
+          .trim()
+        if (stripped) lines.push({ speaker: 'OTHER', text: stripped })
+      }
+    }
+    // Fallback: if no MAYA/ALEX lines found, treat whole script as plain text chunks
+    if (!lines.some(l => l.speaker !== 'OTHER')) {
+      const fallback = raw
+        .replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\*/g, '')
+        .replace(/`{1,3}/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/>\s/g, '').replace(/---+/g, '').trim()
+      return [{ speaker: 'MAYA', text: fallback }]
+    }
+    return lines
+  }
+
+  /**
+   * Pick two distinct English voices — one for MAYA, one for ALEX.
+   * Tries to get a female + male pair; falls back to two different voices.
+   */
+  const pickVoices = (all: SpeechSynthesisVoice[]): { maya: SpeechSynthesisVoice | null; alex: SpeechSynthesisVoice | null } => {
+    const en = all.filter(v => v.lang.startsWith('en'))
+    if (en.length === 0) return { maya: all[0] || null, alex: all[1] || null }
+
+    // Heuristic: voices with "female"/"woman"/"zira"/"samantha"/"karen" in name → female
+    const femaleHints = /female|woman|zira|samantha|karen|victoria|moira|fiona|tessa|susan|google uk english female/i
+    const maleHints = /male|man|david|james|daniel|alex|google uk english male/i
+
+    const females = en.filter(v => femaleHints.test(v.name))
+    const males = en.filter(v => maleHints.test(v.name))
+
+    // MAYA = female (or first en voice), ALEX = male (or second en voice)
+    const maya = females[0] || en[0] || null
+    const alex = males[0] || en.find(v => v !== maya) || en[1] || null
+
+    return { maya, alex }
+  }
+
+  const stopKeepAlive = () => {
+    if (keepAliveRef.current) { clearInterval(keepAliveRef.current); keepAliveRef.current = null }
+  }
+
+  const startKeepAlive = () => {
+    stopKeepAlive()
+    keepAliveRef.current = setInterval(() => {
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume()
+    }, 10000)
+  }
+
+  const speakChunk = (
+    voices: { maya: SpeechSynthesisVoice | null; alex: SpeechSynthesisVoice | null },
+    lines: DialogueLine[],
+    idx: number,
+    speedMult: number
+  ) => {
+    const synth = window.speechSynthesis
+    if (idx >= lines.length) {
+      setIsSpeaking(false); setIsPaused(false); setSpeechProgress(100); stopKeepAlive(); return
+    }
+
+    const line = lines[idx]
+    const utterance = new SpeechSynthesisUtterance(line.text)
+    utteranceRef.current = utterance
+
+    const voice = line.speaker === 'ALEX' ? voices.alex : voices.maya
+    if (voice) utterance.voice = voice
+
+    const baseRate = line.speaker === 'MAYA' ? 0.95 : line.speaker === 'ALEX' ? 0.88 : 0.90
+    utterance.rate = Math.min(3, baseRate * speedRef.current)  // always read latest speed
+    utterance.pitch = line.speaker === 'MAYA' ? 1.15 : line.speaker === 'ALEX' ? 0.88 : 1.0
+    utterance.volume = line.speaker === 'OTHER' ? 0.85 : 1.0
+
+    utterance.onboundary = (e) => {
+      if (e.name === 'word') {
+        const spoken = spokenCharsRef.current + e.charIndex
+        setSpeechProgress(Math.min(99, Math.round((spoken / totalCharsRef.current) * 100)))
+      }
+    }
+    utterance.onend = () => {
+      spokenCharsRef.current += line.text.length
+      chunkIndexRef.current = idx + 1
+      speakChunk(voices, lines, idx + 1, speedMult)
+    }
+    utterance.onerror = (e) => {
+      if (e.error !== 'interrupted' && e.error !== 'canceled') {
+        console.error('TTS error:', e.error)
+        setIsSpeaking(false); setIsPaused(false); stopKeepAlive()
+      }
+    }
+
+    synth.speak(utterance)
+  }
+
+  const handlePlay = () => {
+    if (!('speechSynthesis' in window)) {
+      alert('Your browser does not support audio playback.')
+      return
+    }
+
+    const synth = window.speechSynthesis
+
+    if (isPaused) {
+      synth.resume(); setIsPaused(false); setIsSpeaking(true); startKeepAlive(); return
+    }
+
+    synth.cancel(); stopKeepAlive()
+    didStartRef.current = false
+
+    const lines = parseDialogue()
+    if (!lines.length || !lines.some(l => l.text)) {
+      alert('No content available to read.'); return
+    }
+
+    chunksRef.current = lines.map(l => l.text)
+    chunkIndexRef.current = 0
+    spokenCharsRef.current = 0
+    totalCharsRef.current = lines.reduce((s, l) => s + l.text.length, 0)
+
+    setIsSpeaking(true); setIsPaused(false); setSpeechProgress(0)
+
+    const currentSpeed = ttsSpeed
+
+    const doSpeak = (allVoices: SpeechSynthesisVoice[]) => {
+      if (didStartRef.current) return
+      didStartRef.current = true
+      const voices = pickVoices(allVoices)
+      startKeepAlive()
+      speakChunk(voices, lines, 0, currentSpeed)
+    }
+
+    const voices = synth.getVoices()
+    if (voices.length > 0) {
+      doSpeak(voices)
+    } else {
+      synth.onvoiceschanged = () => { synth.onvoiceschanged = null; doSpeak(synth.getVoices()) }
+      setTimeout(() => doSpeak(synth.getVoices()), 400)
+    }
+  }
+
+  const handlePause = () => {
+    const synth = window.speechSynthesis
+    if (isSpeaking && !isPaused) {
+      synth.pause()
+      setIsPaused(true)
+      setIsSpeaking(false)
+      stopKeepAlive()
+    }
+  }
+
+  const handleStop = () => {
+    window.speechSynthesis.cancel()
+    setIsSpeaking(false)
+    setIsPaused(false)
+    setSpeechProgress(0)
+    chunkIndexRef.current = 0
+    spokenCharsRef.current = 0
+    stopKeepAlive()
+  }
+
+  const handleNodeClick = (label: string) => {
+    const prompt = `Can you explain the concept "${label}" from our roadmap/mindmap in detail? Please provide: 1. Core Definition, 2. Pre-requisites, 3. Detailed Explanation, and 4. A summary conclusion.`;
+    handleSendMessage(prompt);
+    setShowBanner(true);
+  };
+
   useEffect(() => {
-    const expiry = parseInt(localStorage.getItem('lumina_rate_limit_ts') || '0');
-    if (expiry > Date.now()) setShowBanner(true);
-  }, []);
+    return () => {
+      window.speechSynthesis?.cancel()
+      stopKeepAlive()
+    }
+  }, [])
 
   const handleSendMessage = async (override?: string) => {
     const res = await sendMessage(override || chatPrompt);
-    if (res.error === "RATE_LIMIT_REACHED") {
-      setIsRateLimitOpen(true);
-    }
+    if (res.error === "RATE_LIMIT_REACHED") setIsRateLimitOpen(true);
     if (!override) setChatPrompt('');
   };
 
@@ -64,22 +264,52 @@ export default function NoteView({ id }: { id: string }) {
     if (generatingCards) return;
     setGeneratingCards(true);
     try {
+      // Get source text — try multiple fields
+      const sourceText =
+        note?.raw_text ||
+        note?.source_text ||
+        note?.simplified_content?.slice(0, 6000) ||
+        note?.simplified_notes?.slice(0, 6000) ||
+        note?.title ||
+        "";
+
+      if (!sourceText || sourceText.trim().length < 10) {
+        console.error("No source text available for flashcard generation");
+        return;
+      }
+
+      // MUST use FormData — backend expects Form fields not JSON
       const formData = new FormData();
-      formData.append('source_text', note?.source_text || note?.simplified_notes || '');
-      formData.append('existing_cards', JSON.stringify(note?.flashcards || []));
-      const res = await fetch(`${API_BASE_URL}/generate-more-flashcards`, {
-        method: 'POST',
-        body: formData
-      });
+      formData.append("source_text", sourceText);
+      formData.append(
+        "existing_cards",
+        JSON.stringify(note?.flashcards || [])
+      );
+
+      const res = await fetch(
+        `${API_BASE_URL}/generate-more-flashcards`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Server error ${res.status}:`, errorText);
+        return;
+      }
+
       const data = await res.json();
-      if (data.flashcards) {
-        setNote(prev => prev ? ({
+
+      if (data.flashcards && data.flashcards.length > 0) {
+        setNote((prev: any) => ({
           ...prev,
-          flashcards: [...(prev.flashcards || []), ...data.flashcards]
-        }) : null);
+          flashcards: [...(prev?.flashcards || []), ...data.flashcards],
+        }));
       }
     } catch (err) {
-      console.error('Failed to generate more flashcards:', err);
+      console.error("Failed to generate more flashcards:", err);
     } finally {
       setGeneratingCards(false);
     }
@@ -89,95 +319,98 @@ export default function NoteView({ id }: { id: string }) {
     if (generatingQuiz) return;
     setGeneratingQuiz(true);
     try {
+      const sourceText =
+        note?.raw_text ||
+        note?.source_text ||
+        note?.simplified_content?.slice(0, 6000) ||
+        note?.simplified_notes?.slice(0, 6000) ||
+        "";
+
+      if (!sourceText || sourceText.trim().length < 10) {
+        console.error("No source text available");
+        return;
+      }
+
       const formData = new FormData();
-      formData.append('source_text', note?.source_text || note?.simplified_notes || '');
-      formData.append('existing_questions', JSON.stringify(note?.quizzes || []));
-      const res = await fetch(`${API_BASE_URL}/generate-more-quiz`, {
-        method: 'POST',
-        body: formData
-      });
+      formData.append("source_text", sourceText);
+      formData.append(
+        "existing_questions",
+        JSON.stringify(note?.quizzes || [])
+      );
+
+      const res = await fetch(
+        `${API_BASE_URL}/generate-more-quiz`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Server error ${res.status}:`, errorText);
+        return;
+      }
+
       const data = await res.json();
-      if (data.questions) {
-        setNote(prev => prev ? ({
+
+      if (data.questions && data.questions.length > 0) {
+        setNote((prev: any) => ({
           ...prev,
-          quizzes: [...(prev.quizzes || []), ...data.questions]
-        }) : null);
+          quizzes: [...(prev?.quizzes || []), ...data.questions],
+        }));
       }
     } catch (err) {
-      console.error('Failed to generate more questions:', err);
+      console.error("Failed to generate more quiz questions:", err);
     } finally {
       setGeneratingQuiz(false);
     }
   };
 
-  const toggleFlip = (index: number) => {
-    setFlippedCards(prev => ({ ...prev, [index]: !prev[index] }));
-  };
+  if (loading) return <div className="h-screen flex items-center justify-center bg-background">Preparing your study session...</div>;
+  if (error || !note) return <div className="h-screen flex items-center justify-center bg-background text-red-500">{error || 'Note not found'}</div>;
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-background text-muted-foreground font-medium">Preparing your study session...</div>;
-  if (error || !note) return <div className="h-screen flex items-center justify-center bg-background text-red-500 font-bold">{error || 'Note not found'}</div>;
-
-  const notesContent = note.simplified_notes || note.simplified_content || "";
+  // Notes content — strip any quiz/flashcard/podcast sections that may have leaked
+  // from old backend-generated notes. New backend generates pure notes, but old stored
+  // notes may still contain these sections.
+  const rawNotes = (note.simplified_notes || note.simplified_content || "").trim();
+  const notesContent = rawNotes
+    // Remove ## Knowledge Quiz / ## [Knowledge Quiz] sections and everything after until next ##
+    .replace(/^##\s*\[?Knowledge Quiz\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+    // Remove ## Recall Flashcards sections
+    .replace(/^##\s*\[?Recall Flashcards\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+    // Remove ## Audio Lab Script sections
+    .replace(/^##\s*\[?Audio Lab Script\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+    // Remove ## Visual Style Prompt sections
+    .replace(/^##\s*\[?Visual Style Prompt\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+    // Remove ## Study Roadmap sections (these have their own tab)
+    .replace(/^##\s*\[?Study Roadmap\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+    // Remove ## Concept Mind Map sections (these have their own tab)
+    .replace(/^##\s*\[?Concept Mind Map\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+    // Remove pipe-separated quiz lines (Question | A | B | C | D | Answer)
+    .replace(/^[^|\n]+\|[^|\n]+\|[^|\n]+\|[^|\n]+\|[^|\n]+\|[A-E]\s*$/gm, '')
+    // Remove IMAGE_URL_HERE placeholder lines
+    .replace(/!\[.*?\]\(IMAGE_URL_HERE\)/g, '')
+    .trim();
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      <RateLimitModal 
-        isOpen={isRateLimitOpen} 
-        onClose={() => setIsRateLimitOpen(false)} 
-        upgradeUrl="https://openrouter.ai/credits" 
-      />
+    <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans">
+      <RateLimitModal isOpen={isRateLimitOpen} onClose={() => setIsRateLimitOpen(false)} upgradeUrl="https://openrouter.ai/credits" />
 
-      {/* ── LEFT SIDEBAR ── */}
-      <aside 
-        style={{ width: isSidebarCollapsed ? '5rem' : `${sidebarWidth}px` }}
-        className="bg-card border-r border-border flex flex-col p-6 transition-all duration-300 ease-in-out relative group overflow-visible"
+      {/* SIDEBAR — left nav with resize handle */}
+      <aside
+        style={{ width: isSidebarCollapsed ? '5rem' : `${sidebarWidth}px`, minWidth: isSidebarCollapsed ? '5rem' : '180px', maxWidth: '480px' }}
+        className="bg-card border-r border-border flex flex-col relative shrink-0"
       >
-        {!isSidebarCollapsed && (
-          <div 
-            onMouseDown={startResizing}
-            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/30 transition-colors z-50"
-          >
-            <div className="absolute top-1/2 right-0 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <GripVertical className="w-4 h-4 text-muted-foreground" />
-            </div>
-          </div>
-        )}
-
-        <div className={`flex ${isSidebarCollapsed ? 'flex-col items-center gap-4' : 'items-center justify-between'} mb-10 overflow-visible`}>
-          <Link 
-            href="/dashboard" 
-            className="flex items-center gap-3 shrink-0 overflow-visible"
-            title={isSidebarCollapsed ? "Return to Gallery" : ""}
-          >
-            <div className="w-10 h-10 bg-[#E60023] rounded-xl flex items-center justify-center text-white shadow-xl shadow-red-500/20 shrink-0">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            {!isSidebarCollapsed && (
-              <span className="font-black text-lg tracking-tighter whitespace-nowrap overflow-hidden">
-                Lumina
-              </span>
-            )}
+        <div className="flex items-center justify-between mb-10 px-6 pt-6">
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#E60023] rounded-xl flex items-center justify-center text-white"><BookOpen className="w-5 h-5" /></div>
+            {!isSidebarCollapsed && <span className="font-black text-lg">Lumina</span>}
           </Link>
-          
-          <div className="flex items-center gap-2">
-            {!isSidebarCollapsed && <ThemeToggle />}
-            <button 
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-2 hover:bg-muted rounded-lg transition-colors shrink-0"
-              title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-            >
-              <Menu className="w-4 h-4 text-muted-foreground" />
-            </button>
-          </div>
+          <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="p-2 hover:bg-muted rounded-lg"><Menu className="w-4 h-4" /></button>
         </div>
 
-        {isSidebarCollapsed && (
-          <div className="flex justify-center mb-6 overflow-visible">
-            <ThemeToggle />
-          </div>
-        )}
-
-        <nav className="space-y-2 flex-1 overflow-y-auto no-scrollbar overflow-x-hidden">
+        <nav className="space-y-2 flex-1 overflow-y-auto no-scrollbar px-4">
           {[
             { id: 'notes', label: 'Detailed Notes', icon: Book },
             { id: 'roadmap', label: 'Study Roadmap', icon: ChevronRight },
@@ -190,264 +423,764 @@ export default function NoteView({ id }: { id: string }) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as TabType)}
-              title={isSidebarCollapsed ? tab.label : ""}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-sm transition-all duration-300 relative group overflow-hidden ${
-                activeTab === tab.id ? 'bg-[#E60023] text-white shadow-lg shadow-red-500/20' : 'hover:bg-muted text-muted-foreground'
-              }`}
+              className={`w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-sm ${activeTab === tab.id ? 'bg-[#E60023] text-white shadow-lg' : 'hover:bg-muted text-muted-foreground'}`}
             >
               <tab.icon className="w-5 h-5 shrink-0" />
-              {!isSidebarCollapsed && (
-                <span className="truncate whitespace-nowrap overflow-hidden">
-                  {tab.label}
-                </span>
-              )}
-              {isSidebarCollapsed && (
-                <div className="absolute left-full ml-4 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-xl border border-border z-50">
-                  {tab.label}
-                </div>
-              )}
+              {!isSidebarCollapsed && <span className="truncate">{tab.label}</span>}
             </button>
           ))}
         </nav>
-      </aside>
 
-      <main className="flex-1 flex flex-col relative min-w-0">
-        {showBanner && (
-          <div className="bg-yellow-400 p-3 flex items-center justify-between px-8 text-orange-900 font-bold text-sm sticky top-0 z-50 shadow-md">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4" />
-              AI generation is paused for today. Existing notes are fully accessible.
-            </div>
-            <button onClick={() => setShowBanner(false)}><X className="w-4 h-4" /></button>
+        {/* Sidebar Footer */}
+        <div className="mt-6 pt-6 border-t border-border flex flex-col items-center gap-4 px-4 pb-6">
+          <ThemeToggle />
+          {!isSidebarCollapsed && (
+            <span className="text-[10px] font-black uppercase tracking-widest opacity-30">
+              Lumina Engine v2.0
+            </span>
+          )}
+        </div>
+
+        {/* Resize handle — right edge of left sidebar */}
+        {!isSidebarCollapsed && (
+          <div
+            onMouseDown={startResizing}
+            className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10 group"
+            title="Drag to resize"
+          >
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-border rounded-full group-hover:bg-primary/40 transition-colors" />
           </div>
         )}
+      </aside>
 
+      {/* MAIN CONTENT */}
+      <main className="flex-1 flex flex-col relative min-w-0">
         <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
-          <div className="max-w-4xl mx-auto p-12">
-            {/* Title Section Replacement */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }} 
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="mb-12"
-            >
+          <div className="w-full px-8 py-10" style={{ paddingLeft: 'clamp(1.25rem, 3vw, 2.5rem)', paddingRight: 'clamp(1.25rem, 3vw, 2.5rem)' }}>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-12">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/20 bg-primary/5 mb-4">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">
-                  {note.source_type || 'Document'} Study Session
-                </span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Study Session</span>
               </div>
-              <h1 
-                className="text-4xl lg:text-6xl font-black tracking-tight leading-tight break-words text-foreground"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                {note.title}
-              </h1>
-              <div 
-                className="mt-4 h-1 rounded-full bg-primary"
-                style={{ 
-                  width: '80px',
-                  animation: 'expandWidth 0.8s ease forwards 0.3s',
-                  transform: 'scaleX(0)',
-                  transformOrigin: 'left'
-                }} 
-              />
+              <h1 className="text-4xl lg:text-6xl font-black tracking-tight leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>{note.title}</h1>
             </motion.div>
 
             <AnimatePresence mode="wait">
-              <motion.article 
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="article-container pb-[8rem] overflow-y-visible"
-              >
+              <motion.article key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="pb-32">
                 {activeTab === 'notes' && (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                    components={{
-                      // Table Components Replacement
-                      table: ({ children }) => (
-                        <div className="my-8 w-full overflow-x-auto rounded-2xl border border-border shadow-md">
-                          <table className="w-full border-collapse text-sm text-left">
-                            {children}
-                          </table>
-                        </div>
-                      ),
-                      thead: ({ children }) => (
-                        <thead style={{ backgroundColor: 'var(--primary)', color: '#fff' }}>
-                          {children}
-                        </thead>
-                      ),
-                      th: ({ children }) => (
-                        <th className="px-5 py-4 font-black uppercase tracking-wider text-xs border-b border-white/20">
-                          {children}
-                        </th>
-                      ),
-                      tbody: ({ children }) => (
-                        <tbody className="divide-y divide-border">
-                          {children}
-                        </tbody>
-                      ),
-                      tr: ({ children, ...props }: any) => (
-                        <tr className="even:bg-muted/30 hover:bg-primary/5 transition-colors">
-                          {children}
-                        </tr>
-                      ),
-                      td: ({ children }) => (
-                        <td className="px-5 py-4 text-sm opacity-85">
-                          {children}
-                        </td>
-                      ),
-                      h1: ({ children }) => (
-                        <h1 className="text-[2.8rem] font-[900] text-[#E60023] border-b-[3px] border-[#E60023] pb-[0.5rem] mt-[3rem] mb-[1.5rem] leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>{children}</h1>
-                      ),
-                      h2: ({ children }) => (
-                        <h2 className="text-[2rem] font-[800] border-l-[4px] border-[#E60023] pl-[1rem] mt-[2.5rem] mb-[1rem] text-foreground leading-snug">{children}</h2>
-                      ),
-                      h3: ({ children }) => (
-                        <h3 className="text-[1.4rem] font-[700] text-muted-foreground tracking-[0.05em] uppercase mt-[2rem] mb-[0.75rem]">{children}</h3>
-                      ),
-                      p: ({ children }) => <p className="text-[1.05rem] leading-[1.9] opacity-85 mb-[1.25rem] max-w-[72ch]">{children}</p>,
-                      strong: ({ children }) => <strong className="bg-[#FFF3CD] text-[#E60023] px-[4px] py-0 rounded-[3px] font-bold">{children}</strong>,
-                      blockquote: ({ children }) => (
-                        <blockquote className="bg-gradient-to-r from-[#E6002305] to-transparent border-l-[4px] border-[#E60023] p-[1.5rem] pl-[2rem] rounded-r-[1rem] italic text-[1.1rem] text-[#E60023] my-[1.5rem]" style={{ fontFamily: "'Playfair Display', serif" }}>{children}</blockquote>
-                      ),
-                      ul: ({ children }) => <ul className="space-y-4 my-6 markdown-ul">{children}</ul>,
-                      li: ({ children, node }: any) => {
-                        const isOrdered = (node?.parent as any)?.tagName === 'ol' || (node as any).ordered;
-                        const index = (node as any).index || 0;
-                        return (
-                          <li className="flex items-start gap-4 text-[1rem] mb-4">
-                            <span className={`mt-1.5 shrink-0 text-[#E60023] font-black ${isOrdered ? '' : 'bullet-icon'}`}>{isOrdered ? `${index+1}.` : ''}</span>
-                            <div className="flex-1">{children}</div>
+                  <div className="lumina-prose">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={{
+                        h1: ({ children }) => (
+                          <h1 style={{
+                            fontFamily: "'Playfair Display', serif",
+                            fontSize: '2.6rem',
+                            fontWeight: 900,
+                            color: '#E60023',
+                            borderBottom: '3px solid #E60023',
+                            paddingBottom: '0.5rem',
+                            marginTop: '3rem',
+                            marginBottom: '1.5rem',
+                            lineHeight: 1.2
+                          }}>{children}</h1>
+                        ),
+                        h2: ({ children }) => (
+                          <h2 style={{
+                            fontSize: '1.9rem',
+                            fontWeight: 800,
+                            borderLeft: '5px solid #E60023',
+                            paddingLeft: '1rem',
+                            marginTop: '2.5rem',
+                            marginBottom: '1rem',
+                            color: 'var(--foreground)'
+                          }}>{children}</h2>
+                        ),
+                        h3: ({ children }) => (
+                          <h3 style={{
+                            fontSize: '1.35rem',
+                            fontWeight: 700,
+                            color: '#E60023',
+                            marginTop: '2rem',
+                            marginBottom: '0.75rem',
+                            letterSpacing: '0.02em'
+                          }}>{children}</h3>
+                        ),
+                        h4: ({ children }) => (
+                          <h4 style={{
+                            fontSize: '1.1rem',
+                            fontWeight: 600,
+                            fontStyle: 'italic',
+                            color: 'var(--muted-foreground)',
+                            marginTop: '1.5rem',
+                            marginBottom: '0.5rem'
+                          }}>{children}</h4>
+                        ),
+                        p: ({ children }) => (
+                          <p style={{
+                            fontSize: '1.05rem',
+                            lineHeight: 1.9,
+                            marginBottom: '1.25rem',
+                            opacity: 0.85
+                          }}>{children}</p>
+                        ),
+                        strong: ({ children }) => (
+                          <strong style={{
+                            backgroundColor: '#FFF3CD',
+                            color: '#E60023',
+                            padding: '1px 5px',
+                            borderRadius: '3px',
+                            fontWeight: 700
+                          }}>{children}</strong>
+                        ),
+                        em: ({ children }) => (
+                          <em style={{
+                            color: '#5E7B5A',
+                            fontStyle: 'italic'
+                          }}>{children}</em>
+                        ),
+                        blockquote: ({ children }) => (
+                          <blockquote style={{
+                            background: 'linear-gradient(to right, rgba(230,0,35,0.06), transparent)',
+                            borderLeft: '4px solid #E60023',
+                            padding: '0.875rem 1.25rem',
+                            borderRadius: '0 0.75rem 0.75rem 0',
+                            margin: '1.25rem 0',
+                            fontStyle: 'italic',
+                            fontSize: '0.975rem',
+                            lineHeight: 1.7,
+                            color: 'var(--foreground)',
+                            opacity: 0.9,
+                          }}>{children}</blockquote>
+                        ),
+                        ul: ({ children }) => (
+                          <ul style={{
+                            listStyle: 'none',
+                            padding: 0,
+                            margin: '1rem 0 1.5rem 0'
+                          }}>{children}</ul>
+                        ),
+                        ol: ({ children }) => (
+                          <ol style={{
+                            paddingLeft: '1.5rem',
+                            margin: '1rem 0 1.5rem 0',
+                            counterReset: 'list-counter'
+                          }}>{children}</ol>
+                        ),
+                        li: ({ children }) => (
+                          <li style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.75rem',
+                            marginBottom: '0.6rem',
+                            fontSize: '1rem',
+                            lineHeight: 1.7,
+                            opacity: 0.88
+                          }}>
+                            <span style={{
+                              display: 'inline-block',
+                              minWidth: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              backgroundColor: '#E60023',
+                              marginTop: '0.55rem',
+                              flexShrink: 0
+                            }} />
+                            <span>{children}</span>
                           </li>
-                        );
-                      },
-                      code: ({ node, className, children }: any) => {
-                        const match = /language-(\w+)/.exec(className || '');
-                        if (match?.[1] === 'mermaid') return <MermaidDiagram chart={String(children)} />;
-                        return <code className="bg-[#E6002310] text-[#E60023] px-[6px] py-[2px] rounded-[4px] font-mono text-sm font-bold">{children}</code>;
-                      }
-                    }}
-                  >
-                    {notesContent}
-                  </ReactMarkdown>
+                        ),
+                        table: ({ children }) => (
+                          <div style={{
+                            width: '100%',
+                            overflowX: 'auto',
+                            borderRadius: '0.75rem',
+                            border: '1px solid rgba(230,0,35,0.15)',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                            WebkitOverflowScrolling: 'touch',
+                            margin: '1.25rem 0',
+                            resize: 'horizontal',
+                            overflow: 'auto',
+                          }}>
+                            <table style={{
+                              width: '100%',
+                              borderCollapse: 'collapse',
+                              fontSize: '0.875rem',
+                              textAlign: 'left',
+                              tableLayout: 'auto',
+                              margin: 0,
+                            }}>{children}</table>
+                          </div>
+                        ),
+                        thead: ({ children }) => (
+                          <thead style={{
+                            backgroundColor: '#1a1a2e',
+                            color: '#ffffff',
+                          }}>{children}</thead>
+                        ),
+                        th: ({ children }) => (
+                          <th style={{
+                            padding: '0.75rem 1rem',
+                            fontWeight: 800,
+                            fontSize: '0.72rem',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.06em',
+                            whiteSpace: 'nowrap',
+                            borderRight: '1px solid rgba(255,255,255,0.12)',
+                            borderBottom: '2px solid rgba(255,255,255,0.15)',
+                            color: '#ffffff',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            resize: 'horizontal',
+                            minWidth: '80px',
+                          }}>{children}</th>
+                        ),
+                        tbody: ({ children }) => (
+                          <tbody>{children}</tbody>
+                        ),
+                        tr: ({ children }: any) => (
+                          <tr style={{ borderBottom: '1px solid rgba(230,0,35,0.08)' }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(230,0,35,0.03)')}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >{children}</tr>
+                        ),
+                        td: ({ children }) => (
+                          <td style={{
+                            padding: '0.875rem 1.25rem',
+                            fontSize: '0.875rem',
+                            verticalAlign: 'top',
+                            lineHeight: 1.6,
+                            borderRight: '1px solid rgba(230,0,35,0.08)',
+                            borderBottom: '1px solid rgba(230,0,35,0.08)',
+                            wordBreak: 'break-word',
+                            minWidth: '100px',
+                          }}>{children}</td>
+                        ),
+                        code({ node, inline, className, children, ...props }: any) {
+                          const match = /language-mermaid/.exec(className || '')
+                          if (!inline && match) {
+                            return (
+                              <div style={{ margin: '1.75rem 0 2rem' }}>
+                                <MermaidDiagram
+                                  chart={String(children).replace(/\n$/, '')}
+                                  onNodeClick={handleNodeClick}
+                                />
+                              </div>
+                            )
+                          }
+                          if (!inline) {
+                            // Extract language label from className e.g. "language-python"
+                            const lang = (className || '').replace('language-', '').trim()
+                            return (
+                              <div style={{
+                                margin: '1.25rem 0 1.5rem',
+                                borderRadius: '0.75rem',
+                                overflow: 'hidden',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+                              }}>
+                                {/* Code block header bar */}
+                                <div style={{
+                                  background: '#161b22',
+                                  padding: '0.5rem 1rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.5rem',
+                                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                }}>
+                                  {/* Traffic-light dots */}
+                                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
+                                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
+                                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
+                                  {lang && (
+                                    <span style={{
+                                      marginLeft: 'auto',
+                                      fontSize: '0.65rem',
+                                      fontWeight: 700,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.1em',
+                                      color: 'rgba(255,255,255,0.35)',
+                                      fontFamily: 'monospace',
+                                    }}>{lang}</span>
+                                  )}
+                                </div>
+                                {/* Code body */}
+                                <div style={{
+                                  background: '#0d1117',
+                                  padding: '1.1rem 1.4rem',
+                                  overflowX: 'auto',
+                                }}>
+                                  <code style={{
+                                    color: '#e6edf3',
+                                    fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace",
+                                    fontSize: '0.82rem',
+                                    lineHeight: 1.75,
+                                    display: 'block',
+                                    whiteSpace: 'pre',
+                                  }} {...props}>{children}</code>
+                                </div>
+                              </div>
+                            )
+                          }
+                          // Inline code
+                          return (
+                            <code style={{
+                              backgroundColor: 'rgba(230,0,35,0.07)',
+                              color: '#E60023',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontFamily: "'Fira Code', 'Consolas', monospace",
+                              fontSize: '0.82em',
+                              border: '1px solid rgba(230,0,35,0.15)',
+                            }} {...props}>{children}</code>
+                          )
+                        },
+                        a: ({ href, children }) => (
+                          <a href={href} target="_blank" rel="noopener noreferrer"
+                            style={{
+                              color: '#E60023',
+                              fontWeight: 600,
+                              textDecoration: 'underline',
+                              textDecorationColor: 'rgba(230,0,35,0.3)'
+                            }}
+                          >{children}</a>
+                        ),
+                        hr: () => (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '1rem',
+                            margin: '1.75rem 0',
+                          }}>
+                            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#E60023', flexShrink: 0 }} />
+                            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                          </div>
+                        ),
+                      }}
+                    >
+                      {notesContent}
+                    </ReactMarkdown>
+                  </div>
                 )}
 
-                {activeTab === 'roadmap' && <MermaidDiagram chart={note.roadmap} />}
-                {activeTab === 'mindmap' && <MermaidDiagram chart={note.mind_map} />}
-                
+                {activeTab === 'roadmap' && <div className="bg-card border rounded-[2rem] p-8 shadow-sm"><MermaidDiagram chart={note.roadmap} onNodeClick={handleNodeClick} /></div>}
+                {activeTab === 'mindmap' && <div className="bg-card border rounded-[2rem] p-8 shadow-sm"><MermaidDiagram chart={note.mind_map} onNodeClick={handleNodeClick} /></div>}
                 {activeTab === 'quiz' && (
-                  <div className="space-y-6">
-                    <QuizSection quizzes={note.quizzes} />
-                    <div className="flex justify-center pt-10">
-                      <button 
+                  <div className="space-y-10">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+                          Knowledge Quiz
+                        </h2>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {note.quizzes?.length || 0} questions — select an answer to check
+                        </p>
+                      </div>
+                      <button
                         onClick={handleGenerateMoreQuiz}
                         disabled={generatingQuiz}
-                        className="flex items-center gap-2 px-8 py-4 rounded-full border-2 border-[#E60023] text-[#E60023] font-black hover:bg-[#E60023] hover:text-white transition-all duration-300 disabled:opacity-50"
+                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
                       >
-                        {generatingQuiz ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                        {generatingQuiz ? "Generating..." : "+ Generate 10 More Questions"}
+                        {generatingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        More Questions
                       </button>
                     </div>
+
+                    {/* Empty state */}
+                    {(!note.quizzes || note.quizzes.length === 0) && (
+                      <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                          <Trophy className="w-8 h-8 text-primary" />
+                        </div>
+                        <p className="font-bold text-lg mb-2">No quiz questions yet</p>
+                        <p className="text-muted-foreground text-sm mb-6">Click "More Questions" to generate a quiz for this note.</p>
+                      </div>
+                    )}
+
+                    <QuizSection quizzes={note.quizzes || []} />
                   </div>
                 )}
 
                 {activeTab === 'flashcards' && (
-                  <div className="space-y-12">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      {note.flashcards.map((card, i) => (
-                        <div key={i} className="flashcard-scene h-64 group cursor-pointer" onClick={() => toggleFlip(i)}>
-                          <div className={`flashcard-card w-full h-full ${flippedCards[i] ? 'flipped' : ''}`}>
-                            {/* FRONT */}
-                            <div className="flashcard-face flashcard-front bg-card border-2 border-border rounded-[2.5rem] p-10 flex flex-col justify-center items-center shadow-lg group-hover:border-primary transition-colors">
-                              <span className="absolute top-6 right-8 text-xs font-black opacity-30">{i + 1} / {note.flashcards.length}</span>
-                              <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-4 opacity-40">Concept</h4>
-                              <p className="font-bold text-xl text-center leading-tight">{card.front}</p>
-                              <span className="absolute bottom-6 text-[10px] font-black text-muted-foreground opacity-30 uppercase tracking-widest">Click to reveal</span>
-                            </div>
-                            {/* BACK */}
-                            <div className="flashcard-face flashcard-back bg-[#E60023] text-white rounded-[2.5rem] p-10 flex flex-col justify-center items-center shadow-2xl">
-                              <h4 className="text-[10px] font-black uppercase tracking-widest text-white/50 mb-4">Definition</h4>
-                              <p className="font-bold text-lg text-center leading-relaxed">{card.back}</p>
-                              <span className="absolute bottom-6 text-[10px] font-black text-white/40 uppercase tracking-widest">Click to flip back</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex justify-center">
-                      <button 
+                  <div className="space-y-10">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+                          Flashcard Deck
+                        </h2>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {note.flashcards?.length || 0} cards — click any card to flip
+                        </p>
+                      </div>
+                      <button
                         onClick={handleGenerateMoreFlashcards}
                         disabled={generatingCards}
-                        className="flex items-center gap-2 px-8 py-4 rounded-full border-2 border-[#E60023] text-[#E60023] font-black hover:bg-[#E60023] hover:text-white transition-all duration-300 disabled:opacity-50"
+                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
                       >
-                        {generatingCards ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                        {generatingCards ? "Generating..." : "+ Generate 10 More Flashcards"}
+                        {generatingCards ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        More Cards
                       </button>
+                    </div>
+
+                    {/* Empty state */}
+                    {(!note.flashcards || note.flashcards.length === 0) && (
+                      <div className="flex flex-col items-center justify-center py-20 text-center">
+                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                          <Layers className="w-8 h-8 text-primary" />
+                        </div>
+                        <p className="font-bold text-lg mb-2">No flashcards yet</p>
+                        <p className="text-muted-foreground text-sm mb-6">Click "More Cards" to generate flashcards for this note.</p>
+                      </div>
+                    )}
+
+                    {/* Card grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {(note.flashcards || []).map((card, i) => (
+                        <motion.div
+                          key={i}
+                          className="cursor-pointer"
+                          style={{ perspective: '1200px', height: '200px' }}
+                          onClick={() => setFlippedCards(prev => ({ ...prev, [i]: !prev[i] }))}
+                        >
+                          <motion.div
+                            animate={{ rotateY: flippedCards[i] ? 180 : 0 }}
+                            transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                            style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d' }}
+                          >
+                            {/* Front */}
+                            <div
+                              style={{ backfaceVisibility: 'hidden' }}
+                              className="absolute inset-0 bg-card border-2 border-border hover:border-primary/30 rounded-[2.5rem] p-8 flex flex-col justify-between shadow-sm transition-colors"
+                            >
+                              <span className="text-[9px] font-black uppercase tracking-widest text-primary/50">Concept</span>
+                              <p className="font-bold text-base leading-snug text-center">{card.front}</p>
+                              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 text-center">Tap to reveal</span>
+                            </div>
+                            {/* Back */}
+                            <div
+                              style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                              className="absolute inset-0 bg-primary rounded-[2.5rem] p-8 flex flex-col justify-between shadow-2xl"
+                            >
+                              <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Answer</span>
+                              <p className="font-bold text-base leading-snug text-center text-white">{card.back}</p>
+                              <div className="h-1 w-10 bg-white/20 rounded-full mx-auto" />
+                            </div>
+                          </motion.div>
+                        </motion.div>
+                      ))}
                     </div>
                   </div>
                 )}
-                
-                {activeTab === 'gallery' && <GallerySection content={notesContent} />}
+
                 {activeTab === 'podcast' && (
-                  <div className="bg-card border-2 border-border rounded-[3rem] p-12 italic shadow-xl leading-[2] text-lg font-medium opacity-90" style={{ fontFamily: "'Playfair Display', serif" }}>
-                    {note.podcast_script || "Audio script not available."}
+                  <div className="max-w-2xl mx-auto py-12 px-4">
+                    {/* Player Card */}
+                    <div style={{
+                      background: 'var(--card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '2rem',
+                      padding: '3rem',
+                      textAlign: 'center',
+                      boxShadow: '0 20px 60px rgba(0,0,0,0.1)'
+                    }}>
+                      {/* Icon */}
+                      <div style={{
+                        width: '100px', height: '100px',
+                        background: isSpeaking
+                          ? 'linear-gradient(135deg, #E60023, #ff4d6d)'
+                          : 'var(--foreground)',
+                        borderRadius: '2rem',
+                        display: 'flex', alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 2rem',
+                        transition: 'all 0.3s ease',
+                        boxShadow: isSpeaking
+                          ? '0 0 40px rgba(230,0,35,0.4)'
+                          : 'none'
+                      }}>
+                        <Mic style={{
+                          width: '40px', height: '40px',
+                          color: isSpeaking ? '#fff' : '#E60023',
+                          animation: isSpeaking ? 'pulse 1s infinite' : 'none'
+                        }} />
+                      </div>
+
+                      {/* Title */}
+                      <h2 style={{
+                        fontFamily: "'Playfair Display', serif",
+                        fontSize: '1.75rem', fontWeight: 800,
+                        marginBottom: '0.5rem'
+                      }}>
+                        {isSpeaking ? 'Now Playing...' : isPaused ? 'Paused' : 'Audio Summary'}
+                      </h2>
+                      <p style={{
+                        color: 'var(--muted-foreground)',
+                        fontSize: '0.875rem',
+                        marginBottom: '2rem'
+                      }}>
+                        {note?.podcast_script
+                          ? 'Podcast script ready'
+                          : 'Reading study notes aloud'}
+                      </p>
+
+                      {/* Progress Bar */}
+                      <div style={{
+                        background: 'var(--muted)',
+                        borderRadius: '999px',
+                        height: '6px',
+                        margin: '0 0 2rem',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          background: '#E60023',
+                          height: '100%',
+                          width: `${speechProgress}%`,
+                          borderRadius: '999px',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+
+                      {/* Controls */}
+                      <div style={{
+                        display: 'flex', gap: '1rem',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        {/* Stop */}
+                        <button onClick={handleStop}
+                          disabled={!isSpeaking && !isPaused}
+                          style={{
+                            width: '48px', height: '48px',
+                            borderRadius: '50%',
+                            border: '2px solid var(--border)',
+                            background: 'transparent',
+                            display: 'flex', alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            opacity: (!isSpeaking && !isPaused) ? 0.4 : 1
+                          }}>
+                          <VolumeX style={{ width: '20px', height: '20px' }} />
+                        </button>
+
+                        {/* Play / Pause main button */}
+                        <button
+                          onClick={isSpeaking ? handlePause : handlePlay}
+                          style={{
+                            width: '72px', height: '72px',
+                            borderRadius: '50%',
+                            background: '#E60023',
+                            border: 'none',
+                            display: 'flex', alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 8px 24px rgba(230,0,35,0.35)',
+                            transition: 'transform 0.15s ease'
+                          }}
+                          onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.95)')}
+                          onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+                        >
+                          {isSpeaking ? (
+                            <Pause style={{ width: '28px', height: '28px', color: '#fff' }} />
+                          ) : (
+                            <Play style={{ width: '28px', height: '28px', color: '#fff', marginLeft: '4px' }} />
+                          )}
+                        </button>
+
+                        {/* Resume if paused */}
+                        {isPaused && (
+                          <button onClick={handlePlay}
+                            style={{
+                              width: '48px', height: '48px',
+                              borderRadius: '50%',
+                              border: '2px solid #E60023',
+                              background: 'transparent',
+                              display: 'flex', alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              color: '#E60023'
+                            }}>
+                            <Volume2 style={{ width: '20px', height: '20px' }} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Speed selector */}
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.4rem', marginTop: '1.25rem' }}>
+                        {[0.75, 1, 1.25, 1.5, 2].map(s => (
+                          <button
+                            key={s}
+                            onClick={() => { setTtsSpeed(s); speedRef.current = s; }}
+                            style={{
+                              padding: '0.3rem 0.65rem',
+                              borderRadius: '0.5rem',
+                              border: ttsSpeed === s ? '2px solid #E60023' : '2px solid var(--border)',
+                              background: ttsSpeed === s ? '#E60023' : 'transparent',
+                              color: ttsSpeed === s ? '#fff' : 'var(--muted-foreground)',
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            {s}×
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Progress text */}
+                      {(isSpeaking || isPaused || speechProgress > 0) && (
+                        <p style={{
+                          marginTop: '1rem',
+                          fontSize: '0.8rem',
+                          color: 'var(--muted-foreground)'
+                        }}>
+                          {speechProgress}% complete
+                          {isPaused ? ' — Paused' : ''}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Script Preview */}
+                    {note?.podcast_script && (
+                      <div style={{
+                        marginTop: '2rem',
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '1.5rem',
+                        padding: '2rem',
+                        maxHeight: '420px',
+                        overflowY: 'auto',
+                        textAlign: 'left'
+                      }}>
+                        <p style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.15em',
+                          color: '#E60023',
+                          marginBottom: '1.5rem'
+                        }}>Podcast Script</p>
+
+                        {/* Render each line as a styled dialogue bubble */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                          {note.podcast_script
+                            .split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line.length > 0)
+                            .map((line, idx) => {
+                              // Strip markdown bold markers: **MAYA:** text → speaker + text
+                              const cleaned = line.replace(/\*\*/g, '')
+                              const mayaMatch = cleaned.match(/^MAYA:\s*(.+)/)
+                              const alexMatch = cleaned.match(/^ALEX:\s*(.+)/)
+
+                              if (mayaMatch) {
+                                return (
+                                  <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                                    <span style={{
+                                      flexShrink: 0,
+                                      fontSize: '0.65rem',
+                                      fontWeight: 900,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.08em',
+                                      color: '#E60023',
+                                      background: 'rgba(230,0,35,0.08)',
+                                      border: '1px solid rgba(230,0,35,0.2)',
+                                      borderRadius: '0.5rem',
+                                      padding: '0.2rem 0.5rem',
+                                      marginTop: '0.15rem',
+                                      minWidth: '52px',
+                                      textAlign: 'center'
+                                    }}>MAYA</span>
+                                    <p style={{ fontSize: '0.9rem', lineHeight: 1.7, margin: 0, opacity: 0.9 }}>
+                                      {mayaMatch[1]}
+                                    </p>
+                                  </div>
+                                )
+                              }
+
+                              if (alexMatch) {
+                                return (
+                                  <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                                    <span style={{
+                                      flexShrink: 0,
+                                      fontSize: '0.65rem',
+                                      fontWeight: 900,
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.08em',
+                                      color: '#ffffff',
+                                      background: '#1a1a2e',
+                                      borderRadius: '0.5rem',
+                                      padding: '0.2rem 0.5rem',
+                                      marginTop: '0.15rem',
+                                      minWidth: '52px',
+                                      textAlign: 'center'
+                                    }}>ALEX</span>
+                                    <p style={{ fontSize: '0.9rem', lineHeight: 1.7, margin: 0, opacity: 0.9 }}>
+                                      {alexMatch[1]}
+                                    </p>
+                                  </div>
+                                )
+                              }
+
+                              // Non-dialogue line (stage direction, blank separator, etc.)
+                              return (
+                                <p key={idx} style={{
+                                  fontSize: '0.8rem',
+                                  color: 'var(--muted-foreground)',
+                                  fontStyle: 'italic',
+                                  margin: 0,
+                                  paddingLeft: '0.5rem',
+                                  borderLeft: '2px solid var(--border)'
+                                }}>
+                                  {cleaned}
+                                </p>
+                              )
+                            })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {activeTab === 'gallery' && <GallerySection content={notesContent} />}
               </motion.article>
             </AnimatePresence>
           </div>
         </div>
-      </main>
+      </main >
 
-      <ChatSidebar 
-        history={history}
-        loading={chatLoading}
-        prompt={chatPrompt}
-        onPromptChange={setChatPrompt}
-        onSendMessage={handleSendMessage}
-      />
+      <ChatSidebar history={history} loading={chatLoading} prompt={chatPrompt} onPromptChange={setChatPrompt} onSendMessage={handleSendMessage} />
 
       <style jsx global>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .flashcard-scene { perspective: 1000px; }
-        .flashcard-card { 
-          transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); 
-          transform-style: preserve-3d; 
-          position: relative; 
-          width: 100%;
-          height: 100%;
-        }
-        .flashcard-card.flipped { transform: rotateY(180deg); }
-        .flashcard-face { 
-          backface-visibility: hidden; 
-          position: absolute; 
-          inset: 0; 
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-        }
-        .flashcard-back { transform: rotateY(180deg); }
-        .bullet-icon::before { content: '●'; }
+        .backface-hidden { backface-visibility: hidden; }
+        .flipped { transform: rotateY(180deg); }
+        ::selection { background: #E60023; color: #fff; }
+        ::-moz-selection { background: #E60023; color: #fff; }
 
-        ::selection {
-          background-color: #E60023;
-          color: #ffffff;
+        .lumina-prose { max-width: 72ch; }
+
+        /* Nested list indent levels */
+        .lumina-prose ul ul li span:first-child { 
+          background: transparent; 
+          border: 2px solid #E60023; 
         }
-        ::-moz-selection {
-          background-color: #E60023;
-          color: #ffffff;
+        .lumina-prose ul ul ul li span:first-child { 
+          background: transparent;
+          border: none;
+          width: 4px; height: 4px;
+          background-color: #5E7B5A;
         }
 
-        @keyframes expandWidth {
-          from { transform: scaleX(0); }
-          to { transform: scaleX(1); }
+        @keyframes pulse {
+          0% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.1); opacity: 0.8; }
+          100% { transform: scale(1); opacity: 1; }
         }
       `}</style>
-    </div>
+    </div >
   );
 }

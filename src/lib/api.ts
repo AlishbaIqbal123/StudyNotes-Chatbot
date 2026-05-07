@@ -36,15 +36,10 @@ export const studyApi = {
     formData.append('generation_type', generationType);
     if (videoTitle) formData.append('video_title', videoTitle);
     if (channelName) formData.append('channel_name', channelName);
-    
-    const response = await fetch(`${API_BASE_URL}/process`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        ...(typeof window !== 'undefined' && localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {})
-      }
+    // Use axios so response is wrapped in { data: ... } like processText/processFile
+    return api.post('/process', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
     });
-    return response.json();
   },
 
   processText: (text: string, generationType: string = 'all') => {

@@ -13,10 +13,29 @@ export function useNoteData(id: string) {
     let isMounted = true;
 
     const fetchNote = async () => {
+      // Guest note path — read from localStorage
+      if (id.startsWith('guest_')) {
+        try {
+          const raw = localStorage.getItem(`lumina_guest_note_${id}`);
+          if (raw) {
+            const parsed = JSON.parse(raw) as NoteData;
+            if (isMounted) setNote(parsed);
+          } else {
+            if (isMounted) setError('Guest note not found. It may have been cleared from your browser.');
+          }
+        } catch {
+          if (isMounted) setError('Guest note not found. It may have been cleared from your browser.');
+        } finally {
+          if (isMounted) setLoading(false);
+        }
+        return;
+      }
+
+      // Firestore path — authenticated note
       try {
         const docRef = doc(db, 'notes', id);
         const docSnap = await getDoc(docRef);
-        
+
         if (docSnap.exists() && isMounted) {
           setNote(docSnap.data() as NoteData);
         } else if (isMounted) {
