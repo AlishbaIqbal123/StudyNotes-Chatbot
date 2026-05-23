@@ -244,6 +244,71 @@ export default function UploadPage() {
           existingNotesCount={existingNotesCount}
         />
 
+        {/* Full Screen AI Ingestion Loader Pop-up */}
+        <AnimatePresence>
+          {loading && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-300">
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-background/90 backdrop-blur-md"
+              />
+              {/* Modal Card */}
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative w-full max-w-[500px] p-12 rounded-[3rem] bg-card/75 backdrop-blur-2xl border border-accent/30 shadow-[0_20px_50px_rgba(30,64,175,0.18)] text-left overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-primary/10 blur-[60px] pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-accent/10 blur-[60px] pointer-events-none" />
+                
+                <div className="flex flex-col items-center text-center relative z-10">
+                  {/* Animated Brain Icon Container */}
+                  <div className="w-24 h-24 rounded-3xl border border-accent/20 flex items-center justify-center relative shadow-[0_0_30px_rgba(245,158,11,0.25)] bg-card/60 backdrop-blur-xl shrink-0 mb-8">
+                    <motion.div 
+                      animate={{ rotate: 360 }} 
+                      transition={{ repeat: Infinity, duration: 4, ease: "linear" }} 
+                      className="absolute inset-0 border-t-2 border-accent rounded-3xl" 
+                    />
+                    <Brain className="w-10 h-10 text-accent animate-pulse" />
+                  </div>
+                  
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-accent mb-2">
+                    Synthesizing Session
+                  </p>
+                  
+                  <h3 className="text-2xl font-black mb-6 tracking-tight text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
+                    {steps[stepIdx]}
+                  </h3>
+                  
+                  {/* Progress Bar Container */}
+                  <div className="w-full h-3 bg-muted/40 rounded-full overflow-hidden relative border border-white/5 mb-4 shadow-inner">
+                    <motion.div 
+                      className="h-full bg-gradient-to-r from-primary via-accent to-secondary" 
+                      animate={{ width: `${progress}%` }} 
+                    />
+                  </div>
+                  
+                  <div className="flex justify-between items-center w-full text-xs font-bold text-muted-foreground mt-2">
+                    <span className="flex items-center gap-1.5 font-black uppercase tracking-wider text-[10px]">
+                      <span className="w-2.5 h-2.5 rounded-full bg-accent animate-ping" />
+                      Atelier Status
+                    </span>
+                    <span className="text-accent text-lg font-mono font-black">{Math.round(progress)}%</span>
+                  </div>
+                  
+                  <p className="mt-8 text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest leading-relaxed">
+                    Curating Socratic notes & custom visuals
+                  </p>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* Guest limit modal (1 free generation) */}
         <AnimatePresence>
           {false && <div />}
@@ -316,37 +381,6 @@ export default function UploadPage() {
               ))}
             </div>
 
-            {/* Inline AI Ingestion Loader */}
-            <AnimatePresence>
-              {loading && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="p-6 rounded-[2rem] bg-card/65 backdrop-blur-xl border border-accent/30 shadow-[0_8px_30px_rgb(30,64,175,0.06)] relative overflow-hidden mt-4 text-left"
-                >
-                  <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-primary/10 blur-[40px] pointer-events-none" />
-                  <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full bg-accent/10 blur-[40px] pointer-events-none" />
-                  <div className="flex items-center gap-4 mb-4 relative z-10">
-                    <div className="w-12 h-12 rounded-xl border border-accent/20 flex items-center justify-center relative shadow-[0_0_15px_rgba(245,158,11,0.15)] bg-card/60 backdrop-blur-xl shrink-0">
-                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: "linear" }} className="absolute inset-0 border-t-2 border-accent rounded-full" />
-                      <Brain className="w-5 h-5 text-accent animate-pulse" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-accent leading-none mb-1">Synthesizing</p>
-                      <h4 className="font-bold text-xs truncate text-foreground">{steps[stepIdx]}</h4>
-                    </div>
-                  </div>
-                  <div className="w-full h-2 bg-muted/40 rounded-full overflow-hidden relative z-10 border border-white/5 mb-2 shadow-inner">
-                    <motion.div className="h-full bg-gradient-to-r from-primary via-accent to-secondary" animate={{ width: `${progress}%` }} />
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground relative z-10">
-                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" /> atelier status</span>
-                    <span className="text-accent">{Math.round(progress)}%</span>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
 
           {/* Right Column: Ingestion Canvas Form */}
