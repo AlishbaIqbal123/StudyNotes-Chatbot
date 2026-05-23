@@ -323,25 +323,26 @@ export default function UploadPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="p-6 rounded-[2rem] bg-card border border-primary/20 shadow-xl relative overflow-hidden mt-4 text-left"
+                  className="p-6 rounded-[2rem] bg-card/65 backdrop-blur-xl border border-accent/30 shadow-[0_8px_30px_rgb(30,64,175,0.06)] relative overflow-hidden mt-4 text-left"
                 >
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-primary/10 blur-[50px] pointer-events-none" />
+                  <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-primary/10 blur-[40px] pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full bg-accent/10 blur-[40px] pointer-events-none" />
                   <div className="flex items-center gap-4 mb-4 relative z-10">
-                    <div className="w-12 h-12 rounded-xl border border-primary/20 flex items-center justify-center relative shadow-lg bg-card/60 backdrop-blur-xl shrink-0">
-                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 8, ease: "linear" }} className="absolute inset-0 border-t-2 border-primary rounded-full" />
-                      <Brain className="w-5 h-5 text-primary animate-pulse" />
+                    <div className="w-12 h-12 rounded-xl border border-accent/20 flex items-center justify-center relative shadow-[0_0_15px_rgba(245,158,11,0.15)] bg-card/60 backdrop-blur-xl shrink-0">
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: "linear" }} className="absolute inset-0 border-t-2 border-accent rounded-full" />
+                      <Brain className="w-5 h-5 text-accent animate-pulse" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none mb-1">Synthesizing</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-accent leading-none mb-1">Synthesizing</p>
                       <h4 className="font-bold text-xs truncate text-foreground">{steps[stepIdx]}</h4>
                     </div>
                   </div>
-                  <div className="w-full h-2 bg-muted/40 rounded-full overflow-hidden relative z-10 border border-white/5 mb-2">
-                    <motion.div className="h-full bg-gradient-to-r from-primary to-secondary" animate={{ width: `${progress}%` }} />
+                  <div className="w-full h-2 bg-muted/40 rounded-full overflow-hidden relative z-10 border border-white/5 mb-2 shadow-inner">
+                    <motion.div className="h-full bg-gradient-to-r from-primary via-accent to-secondary" animate={{ width: `${progress}%` }} />
                   </div>
                   <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground relative z-10">
-                    <span>Progress</span>
-                    <span>{Math.round(progress)}%</span>
+                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-accent animate-ping" /> atelier status</span>
+                    <span className="text-accent">{Math.round(progress)}%</span>
                   </div>
                 </motion.div>
               )}
