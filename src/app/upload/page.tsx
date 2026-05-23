@@ -65,9 +65,9 @@ function classifyError(err: any): ClassifiedError {
 }
 
 const inputTypes = [
-  { id: 'upload' as const, label: 'Document', icon: FileText, desc: 'PDF, DOCX, PPTX, TXT', color: '#E60023' },
-  { id: 'youtube' as const, label: 'YouTube', icon: Video, desc: 'Lecture / Video link', color: '#3B9BC8' },
-  { id: 'text' as const, label: 'Deep Text', icon: Type, desc: 'Raw notes / Abstract', color: '#5E7B5A' },
+  { id: 'upload' as const, label: 'Document', icon: FileText, desc: 'PDF, DOCX, PPTX, TXT', color: '#1E40AF' },
+  { id: 'youtube' as const, label: 'YouTube', icon: Video, desc: 'Lecture / Video link', color: '#F59E0B' },
+  { id: 'text' as const, label: 'Deep Text', icon: Type, desc: 'Raw notes / Abstract', color: '#3B82F6' },
 ] as const;
 
 const steps = [
@@ -141,7 +141,7 @@ export default function UploadPage() {
 
     if (!user) {
       const guestCount = parseInt(localStorage.getItem('lumina_guest_gen_count') || '0');
-      if (guestCount >= 1) {
+      if (guestCount >= 50) {
         setShowLimitModal(true);
         return;
       }
@@ -290,177 +290,248 @@ export default function UploadPage() {
         </div>
 
         {/* Workspace */}
-        {
-          !loading && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              <div className="lg:col-span-4 space-y-3">
-                {inputTypes.map((tab) => (
-                  <button
-                    key={tab.id} onClick={() => setActiveTab(tab.id)}
-                    className={`group w-full relative p-6 rounded-[2rem] transition-all duration-300 ${activeTab === tab.id ? 'bg-card shadow-xl border-primary/30 border' : 'bg-card/40 hover:bg-card border border-border'
-                      }`}
-                  >
-                    <div className="flex items-center gap-5">
-                      <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors"
-                        style={{ background: activeTab === tab.id ? tab.color : 'var(--muted)', color: activeTab === tab.id ? 'white' : 'var(--muted-foreground)' }}>
-                        <tab.icon className="w-5 h-5" />
-                      </div>
-                      <div className="text-left">
-                        <h4 className="font-bold text-sm mb-0.5">{tab.label}</h4>
-                        <p className="text-[10px] uppercase tracking-widest opacity-40 font-black">{tab.desc}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Column: Selectors & Inline Loading */}
+          <div className="lg:col-span-4 space-y-4">
+            <div className={`space-y-3 ${loading ? 'pointer-events-none opacity-60' : ''}`}>
+              {inputTypes.map((tab) => (
+                <button
+                  key={tab.id}
+                  disabled={loading}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`group w-full relative p-6 rounded-[2rem] transition-all duration-300 ${activeTab === tab.id ? 'bg-card shadow-xl border-primary/30 border' : 'bg-card/40 hover:bg-card border border-border'
+                    }`}
+                >
+                  <div className="flex items-center gap-5">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors"
+                      style={{ background: activeTab === tab.id ? tab.color : 'var(--muted)', color: activeTab === tab.id ? 'white' : 'var(--muted-foreground)' }}>
+                      <tab.icon className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-bold text-sm mb-0.5">{tab.label}</h4>
+                      <p className="text-[10px] uppercase tracking-widest opacity-40 font-black">{tab.desc}</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Inline AI Ingestion Loader */}
+            <AnimatePresence>
+              {loading && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="p-6 rounded-[2rem] bg-card border border-primary/20 shadow-xl relative overflow-hidden mt-4 text-left"
+                >
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-primary/10 blur-[50px] pointer-events-none" />
+                  <div className="flex items-center gap-4 mb-4 relative z-10">
+                    <div className="w-12 h-12 rounded-xl border border-primary/20 flex items-center justify-center relative shadow-lg bg-card/60 backdrop-blur-xl shrink-0">
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 8, ease: "linear" }} className="absolute inset-0 border-t-2 border-primary rounded-full" />
+                      <Brain className="w-5 h-5 text-primary animate-pulse" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-primary leading-none mb-1">Synthesizing</p>
+                      <h4 className="font-bold text-xs truncate text-foreground">{steps[stepIdx]}</h4>
+                    </div>
+                  </div>
+                  <div className="w-full h-2 bg-muted/40 rounded-full overflow-hidden relative z-10 border border-white/5 mb-2">
+                    <motion.div className="h-full bg-gradient-to-r from-primary to-secondary" animate={{ width: `${progress}%` }} />
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground relative z-10">
+                    <span>Progress</span>
+                    <span>{Math.round(progress)}%</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Right Column: Ingestion Canvas Form */}
+          <div className={`lg:col-span-8 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
+            <div className="bg-card min-h-[450px] rounded-[2.5rem] border border-border p-8 lg:p-12 shadow-sm">
+              <AnimatePresence mode="wait">
+                {activeTab === 'upload' && (
+                  <motion.div key="u" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
+                    <div className="mb-10 text-left"><h3 className="text-2xl font-bold mb-2">Ingest Document</h3><p className="text-sm text-muted-foreground">PDF, DOCX, PPTX, or TXT supported.</p></div>
+                    <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
+                      className={`relative flex-1 border-2 border-dashed rounded-[2rem] transition-all flex flex-col items-center justify-center p-10 ${dragOver || file ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>
+                      <input type="file" disabled={loading} className="absolute inset-0 opacity-0 cursor-pointer" accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md" onChange={e => setFile(e.target.files?.[0] || null)} />
+                      <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-6">{file ? <CheckCircle2 className="w-8 h-8 text-primary" /> : <UploadIcon className="w-8 h-8 opacity-20" />}</div>
+                      <span className="text-lg font-bold">{file ? file.name : 'Drop File Here'}</span>
+                    </div>
+                    <div className="mt-10 mb-6">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {generationOptions.map(opt => (
+                          <button
+                            key={opt.id} disabled={loading} onClick={() => setGenerationType(opt.id)}
+                            className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
+                              }`}
+                          >
+                            <p className="text-xs font-bold mb-0.5">{opt.label}</p>
+                            <p className="text-[9px] text-muted-foreground">{opt.desc}</p>
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  </button>
-                ))}
-              </div>
+                    <button disabled={!file || loading} onClick={() => handleProcess('file')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Initiate Synthesis</button>
+                  </motion.div>
+                )}
+                {activeTab === 'youtube' && (
+                  <motion.div key="y" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
+                    <div className="mb-10 text-left">
+                      <h3 className="text-2xl font-bold mb-2">YouTube Link</h3>
+                      <p className="text-sm text-muted-foreground">Extract knowledge from lectures.</p>
+                    </div>
 
-              <div className="lg:col-span-8">
-                <div className="bg-card min-h-[450px] rounded-[2.5rem] border border-border p-8 lg:p-12 shadow-sm">
-                  <AnimatePresence mode="wait">
-                    {activeTab === 'upload' && (
-                      <motion.div key="u" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
-                        <div className="mb-10 text-left"><h3 className="text-2xl font-bold mb-2">Ingest Document</h3><p className="text-sm text-muted-foreground">PDF, DOCX, PPTX, or TXT supported.</p></div>
-                        <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) setFile(f); }}
-                          className={`relative flex-1 border-2 border-dashed rounded-[2rem] transition-all flex flex-col items-center justify-center p-10 ${dragOver || file ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>
-                          <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md" onChange={e => setFile(e.target.files?.[0] || null)} />
-                          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-6">{file ? <CheckCircle2 className="w-8 h-8 text-primary" /> : <UploadIcon className="w-8 h-8 opacity-20" />}</div>
-                          <span className="text-lg font-bold">{file ? file.name : 'Drop File Here'}</span>
+                    {!showManualInput ? (
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Link</p>
+                          <input type="url" disabled={loading} placeholder="Paste YouTube link..." className="w-full bg-muted rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/20" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} />
                         </div>
-                        <div className="mt-10 mb-6">
-                          <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {generationOptions.map(opt => (
-                              <button
-                                key={opt.id} onClick={() => setGenerationType(opt.id)}
-                                className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
-                                  }`}
-                              >
-                                <p className="text-xs font-bold mb-0.5">{opt.label}</p>
-                                <p className="text-[9px] text-muted-foreground">{opt.desc}</p>
-                              </button>
-                            ))}
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Title (Help AI)</p>
+                            <input type="text" disabled={loading} placeholder="e.g. E-commerce Class 1" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Channel Name</p>
+                            <input type="text" disabled={loading} placeholder="e.g. MIT OpenCourseWare" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={channelName} onChange={e => setChannelName(e.target.value)} />
                           </div>
                         </div>
-                        <button disabled={!file} onClick={() => handleProcess('file')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Initiate Synthesis</button>
-                      </motion.div>
-                    )}
-                    {activeTab === 'youtube' && (
-                      <motion.div key="y" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
-                        <div className="mb-10 text-left">
-                          <h3 className="text-2xl font-bold mb-2">YouTube Link</h3>
-                          <p className="text-sm text-muted-foreground">Extract knowledge from lectures.</p>
-                        </div>
 
-                        {!showManualInput ? (
-                          <div className="space-y-4">
-                            <div className="space-y-1.5">
-                              <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Link</p>
-                              <input type="url" placeholder="Paste YouTube link..." className="w-full bg-muted rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/20" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-1.5">
-                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Title (Help AI)</p>
-                                <input type="text" placeholder="e.g. E-commerce Class 1" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} />
-                              </div>
-                              <div className="space-y-1.5">
-                                <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Channel Name</p>
-                                <input type="text" placeholder="e.g. MIT OpenCourseWare" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={channelName} onChange={e => setChannelName(e.target.value)} />
-                              </div>
-                            </div>
-
-                            <button
-                              onClick={() => setShowManualInput(true)}
-                              className="mt-2 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
-                            >
-                              Link not working? Paste transcript manually
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <textarea
-                              className="w-full min-h-[200px] bg-muted rounded-[2rem] p-6 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
-                              placeholder="Paste the video transcript here..."
-                              value={manualTranscript}
-                              onChange={e => setManualTranscript(e.target.value)}
-                            />
-                            <button
-                              onClick={() => setShowManualInput(false)}
-                              className="mt-4 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
-                            >
-                              Back to Link Mode
-                            </button>
-                          </>
-                        )}
-
-                        <div className="mt-10 mb-6">
-                          <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {generationOptions.map(opt => (
-                              <button
-                                key={opt.id} onClick={() => setGenerationType(opt.id)}
-                                className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
-                                  }`}
-                              >
-                                <p className="text-xs font-bold mb-0.5">{opt.label}</p>
-                                <p className="text-[9px] text-muted-foreground">{opt.desc}</p>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
                         <button
-                          disabled={showManualInput ? manualTranscript.length < 50 : !youtubeUrl}
-                          onClick={() => handleProcess('youtube')}
-                          className="w-full py-5 bg-[#3B9BC8] text-white rounded-[1.5rem] font-bold shadow-lg disabled:opacity-30"
+                          disabled={loading}
+                          onClick={() => setShowManualInput(true)}
+                          className="mt-2 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
                         >
-                          {showManualInput ? 'Synthesize Transcript' : 'Transduce Video'}
+                          Link not working? Paste transcript manually
                         </button>
-                      </motion.div>
+                      </div>
+                    ) : (
+                      <>
+                        <textarea
+                          disabled={loading}
+                          className="w-full min-h-[200px] bg-muted rounded-[2rem] p-6 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                          placeholder="Paste the video transcript here..."
+                          value={manualTranscript}
+                          onChange={e => setManualTranscript(e.target.value)}
+                        />
+                        <button
+                          disabled={loading}
+                          onClick={() => setShowManualInput(false)}
+                          className="mt-4 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
+                        >
+                          Back to Link Mode
+                        </button>
+                      </>
                     )}
-                    {activeTab === 'text' && (
-                      <motion.div key="t" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
-                        <div className="mb-10 text-left"><h3 className="text-2xl font-bold mb-2">Deep Text</h3><p className="text-sm text-muted-foreground">Synthesize raw thoughts.</p></div>
-                        <textarea className="flex-1 min-h-[250px] w-full bg-muted rounded-[2rem] p-8 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" placeholder="Paste content..." value={rawText} onChange={e => setRawText(e.target.value)} />
-                        <div className="mt-10 mb-6">
-                          <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {generationOptions.map(opt => (
-                              <button
-                                key={opt.id} onClick={() => setGenerationType(opt.id)}
-                                className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
-                                  }`}
-                              >
-                                <p className="text-xs font-bold mb-0.5">{opt.label}</p>
-                                <p className="text-[9px] text-muted-foreground">{opt.desc}</p>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <button disabled={rawText.length < 50} onClick={() => handleProcess('text')} className="w-full py-5 bg-[#5E7B5A] text-white rounded-[1.5rem] font-bold shadow-lg disabled:opacity-30">Harmonize Concepts</button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+
+                    <div className="mt-10 mb-6">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {generationOptions.map(opt => (
+                          <button
+                            key={opt.id} disabled={loading} onClick={() => setGenerationType(opt.id)}
+                            className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
+                              }`}
+                          >
+                            <p className="text-xs font-bold mb-0.5">{opt.label}</p>
+                            <p className="text-[9px] text-muted-foreground">{opt.desc}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      disabled={loading || (showManualInput ? manualTranscript.length < 50 : !youtubeUrl)}
+                      onClick={() => handleProcess('youtube')}
+                      className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30"
+                    >
+                      {showManualInput ? 'Synthesize Transcript' : 'Transduce Video'}
+                    </button>
+                  </motion.div>
+                )}
+                {activeTab === 'text' && (
+                  <motion.div key="t" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
+                    <div className="mb-10 text-left"><h3 className="text-2xl font-bold mb-2">Deep Text</h3><p className="text-sm text-muted-foreground">Synthesize raw thoughts.</p></div>
+                    <textarea disabled={loading} className="flex-1 min-h-[250px] w-full bg-muted rounded-[2rem] p-8 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" placeholder="Paste content..." value={rawText} onChange={e => setRawText(e.target.value)} />
+                    <div className="mt-10 mb-6">
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {generationOptions.map(opt => (
+                          <button
+                            key={opt.id} disabled={loading} onClick={() => setGenerationType(opt.id)}
+                            className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
+                              }`}
+                          >
+                            <p className="text-xs font-bold mb-0.5">{opt.label}</p>
+                            <p className="text-[9px] text-muted-foreground">{opt.desc}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button disabled={rawText.length < 50 || loading} onClick={() => handleProcess('text')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Harmonize Concepts</button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Info Strip & Aesthetic Gallery */}
+        <div className="mt-16 pt-12 border-t border-border">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+            {/* Info Strip */}
+            <div className="md:col-span-1 p-8 rounded-[2rem] bg-gradient-to-br from-primary/10 to-transparent border border-primary/10 flex flex-col justify-between">
+              <div>
+                <Sparkles className="w-8 h-8 text-primary mb-6" />
+                <h3 className="text-xl font-bold mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>Curated Synthesis</h3>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Lumina Atelier leverages advanced AI pipelines to extract, structure, and refine key concepts from your raw lectures and text.
+                </p>
+              </div>
+              <div className="text-[10px] font-black tracking-widest uppercase text-primary mt-6">
+                Powered by Gemini 2.5 Pro
               </div>
             </div>
-          )
-        }
 
-        {/* Loading */}
-        {
-          loading && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card rounded-[3rem] p-20 flex flex-col items-center border border-border shadow-xl">
-              <div className="w-32 h-32 rounded-full border-2 border-primary/10 flex items-center justify-center mb-10 relative">
-                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 8, ease: "linear" }} className="absolute inset-0 border-t-2 border-primary rounded-full" />
-                <Brain className="w-12 h-12 text-primary animate-pulse" />
+            {/* Gallery Image 1 */}
+            <div className="p-6 rounded-[2rem] bg-card border border-border flex flex-col justify-between group overflow-hidden relative">
+              <div className="aspect-[16/9] w-full rounded-2xl overflow-hidden bg-muted mb-4 relative">
+                <img
+                  src="https://image.pollinations.ai/prompt/microscopy-neural-connection-neon-blue-gold?width=400&height=250&nologo=true&seed=lumina1"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  alt="Neural synthesis illustration"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
-              <h2 className="text-3xl font-bold mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>{steps[stepIdx]}</h2>
-              <div className="w-full max-w-sm h-1.5 bg-muted rounded-full overflow-hidden">
-                <motion.div className="h-full bg-primary" animate={{ width: `${progress}%` }} />
+              <div>
+                <h4 className="font-bold text-sm mb-1">Conceptual Maps</h4>
+                <p className="text-[10px] text-muted-foreground">Beautiful interactive visual flowcharts for relationships.</p>
               </div>
-            </motion.div>
-          )
-        }
+            </div>
+
+            {/* Gallery Image 2 */}
+            <div className="p-6 rounded-[2rem] bg-card border border-border flex flex-col justify-between group overflow-hidden relative">
+              <div className="aspect-[16/9] w-full rounded-2xl overflow-hidden bg-muted mb-4 relative">
+                <img
+                  src="https://image.pollinations.ai/prompt/abstract-glowing-geometric-patterns-royal-blue-gold?width=400&height=250&nologo=true&seed=lumina2"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  alt="Geometric synthesis representation"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm mb-1">Knowledge Recalls</h4>
+                <p className="text-[10px] text-muted-foreground">Spaced-repetition systems dynamically customized to your notes.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div >
     </DashboardLayout >
   );

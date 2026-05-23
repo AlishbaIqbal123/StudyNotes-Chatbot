@@ -13,10 +13,10 @@ interface AuthLayoutProps {
 }
 
 const boards = [
-  { label: 'Neural Networks', gradient: 'linear-gradient(135deg,#E60023,#FF6B6B)', h: 160 },
-  { label: 'Quantum Physics',  gradient: 'linear-gradient(135deg,#7C6FCD,#C4B5E0)', h: 200 },
-  { label: 'Cell Biology',     gradient: 'linear-gradient(135deg,#5E7B5A,#A8C5A0)', h: 160 },
-  { label: 'Data Structures',  gradient: 'linear-gradient(135deg,#3B9BC8,#BCDFF1)', h: 180 },
+  { label: 'Neural Networks', gradient: 'linear-gradient(135deg,#1E40AF,#60A5FA)', h: 160 },
+  { label: 'Quantum Physics',  gradient: 'linear-gradient(135deg,#D97706,#FCD34D)', h: 200 },
+  { label: 'Cell Biology',     gradient: 'linear-gradient(135deg,#2563EB,#93C5FD)', h: 160 },
+  { label: 'Data Structures',  gradient: 'linear-gradient(135deg,#B45309,#FBBF24)', h: 180 },
 ];
 
 export default function AuthLayout({ children, title, subtitle, variant = 'login' }: AuthLayoutProps) {
@@ -39,13 +39,13 @@ export default function AuthLayout({ children, title, subtitle, variant = 'login
         <div className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full opacity-20"
           style={{ background: 'radial-gradient(circle, var(--primary) 0%, transparent 70%)', transform: 'translate(30%,-30%)' }} />
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full opacity-15"
-          style={{ background: 'radial-gradient(circle, #7C6FCD 0%, transparent 70%)', transform: 'translate(-30%,30%)' }} />
+          style={{ background: 'radial-gradient(circle, #1E40AF 0%, transparent 70%)', transform: 'translate(-30%,30%)' }} />
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-4 relative z-10 w-fit">
           <div
             className="w-12 h-12 rounded-[1.25rem] flex items-center justify-center shadow-2xl"
-            style={{ background: 'linear-gradient(135deg, #B7001A, var(--primary))' }}
+            style={{ background: 'linear-gradient(135deg, #1E40AF, var(--primary))' }}
           >
             <Sparkles className="text-white w-6 h-6" />
           </div>
@@ -124,7 +124,7 @@ export default function AuthLayout({ children, title, subtitle, variant = 'login
                     className="flex items-center gap-5"
                   >
                     <div className="w-11 h-11 rounded-[1.125rem] flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'rgba(230,0,35,0.12)', border: '1px solid rgba(230,0,35,0.1)' }}>
+                      style={{ background: 'rgba(30,64,175,0.12)', border: '1px solid rgba(30,64,175,0.1)' }}>
                       <b.icon className="w-5 h-5 text-primary" />
                     </div>
                     <span className="text-base font-semibold" style={{ color: 'var(--sidebar-foreground)', opacity: 0.75, fontFamily: "'Space Grotesk', sans-serif" }}>
@@ -155,7 +155,7 @@ export default function AuthLayout({ children, title, subtitle, variant = 'login
       >
         {/* Subtle bg orb */}
         <div className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full opacity-30 pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(230,0,35,0.03) 0%, transparent 70%)', transform: 'translate(30%,-30%)' }} />
+          style={{ background: 'radial-gradient(circle, rgba(30,64,175,0.03) 0%, transparent 70%)', transform: 'translate(30%,-30%)' }} />
 
         <div className="max-w-md w-full mx-auto">
           {/* Heading */}

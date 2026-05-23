@@ -42,7 +42,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       
       {/* ── DESKTOP SIDEBAR ── */}
       <aside
-        className="hidden lg:flex flex-col border-r border-border bg-[#0F0807] fixed left-0 top-0 h-screen z-50 transition-all duration-500 ease-out shadow-2xl overflow-hidden"
+        className="hidden lg:flex flex-col border-r border-border bg-[#070A13] fixed left-0 top-0 h-screen z-50 transition-all duration-500 ease-out shadow-2xl overflow-hidden"
         style={{ width: sidebarW }}
       >
         {/* Logo Section */}
@@ -61,23 +61,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Navigation Section */}
-        <div className="flex-1 py-8 px-4 space-y-2 no-scrollbar overflow-y-auto">
-           {navItems.map((item) => {
-              const active = pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  href={item.path}
-                  className={`relative flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${
-                    active ? 'bg-white/5 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.02]'
-                  } ${collapsed ? 'justify-center' : ''}`}
-                >
-                  <item.icon className={`w-5 h-5 shrink-0 transition-colors ${active ? 'text-primary' : 'group-hover:text-zinc-300'}`} />
-                  {!collapsed && <span className="text-sm font-bold tracking-tight">{item.label}</span>}
-                  {active && <motion.div layoutId="sidebar-active-pill" className="absolute left-0 w-1 h-6 bg-primary rounded-r-full" />}
+        <div className="flex-1 py-8 px-4 no-scrollbar overflow-y-auto flex flex-col justify-between min-h-0">
+           <div className="space-y-2">
+              {navItems.map((item) => {
+                 const active = pathname === item.path;
+                 return (
+                   <Link
+                     key={item.path}
+                     href={item.path}
+                     className={`relative flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group ${
+                       active ? 'bg-white/5 text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.02]'
+                     } ${collapsed ? 'justify-center' : ''}`}
+                   >
+                     <item.icon className={`w-5 h-5 shrink-0 transition-colors ${active ? 'text-primary' : 'group-hover:text-zinc-300'}`} />
+                     {!collapsed && <span className="text-sm font-bold tracking-tight">{item.label}</span>}
+                     {active && <motion.div layoutId="sidebar-active-pill" className="absolute left-0 w-1 h-6 bg-primary rounded-r-full" />}
+                   </Link>
+                 );
+              })}
+           </div>
+
+           {/* Pro Access Upgrade Card */}
+           <div className="mt-8 pt-6 border-t border-white/5">
+              {!collapsed ? (
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-amber-500/10 to-yellow-500/5 border border-amber-500/20 relative overflow-hidden group">
+                  <div className="absolute -right-4 -top-4 w-24 h-24 bg-amber-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+                  <div className="relative z-10">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center mb-3 shadow-md shadow-amber-500/20">
+                      <Zap className="text-white w-4 h-4 fill-white animate-pulse" />
+                    </div>
+                    <h3 className="text-white font-bold text-sm leading-tight">Pro Access</h3>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">Unlock advanced AI synthesizers & direct audio rendering.</p>
+                    <Link href="/pricing" className="mt-4 block w-full py-2.5 rounded-xl bg-gold-gradient hover:opacity-90 text-[#0A1128] text-center text-xs font-black uppercase tracking-widest shadow-gold-glow transition-all hover:scale-[1.02]">
+                      Upgrade Now
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <Link href="/pricing" className="flex items-center justify-center mx-auto w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-yellow-500/10 border border-amber-500/30 text-amber-400 hover:text-white hover:bg-gold-gradient hover:border-transparent transition-all shadow-md group">
+                  <Zap className="w-5 h-5 fill-current group-hover:scale-110 transition-transform" />
                 </Link>
-              );
-           })}
+              )}
+           </div>
         </div>
 
         {/* Sidebar Footer */}
@@ -151,7 +176,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
          {mobileMenuOpen && (
            <>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMobileMenuOpen(false)} className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md lg:hidden" />
-              <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed inset-y-0 left-0 z-[70] w-[85%] max-w-sm bg-[#0F0807] p-8 lg:hidden flex flex-col shadow-2xl">
+              <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="fixed inset-y-0 left-0 z-[70] w-[85%] max-w-sm bg-[#070A13] p-8 lg:hidden flex flex-col shadow-2xl">
                  <div className="flex items-center justify-between mb-12">
                     <div className="flex items-center gap-3">
                        <Sparkles className="text-primary w-8 h-8" />

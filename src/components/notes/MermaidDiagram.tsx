@@ -88,9 +88,9 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, onNodeClick }) =
       securityLevel: 'loose',
       fontFamily: "'Inter', sans-serif",
       themeVariables: {
-        primaryColor: '#E60023',
+        primaryColor: '#8B5CF6',
         primaryTextColor: '#fff',
-        primaryBorderColor: '#E60023',
+        primaryBorderColor: '#8B5CF6',
         lineColor: '#e2e8f0',
         secondaryColor: '#f8fafc',
         tertiaryColor: '#fff',

@@ -23,6 +23,8 @@ export function useChatHistory(noteContent: string) {
       const formData = new FormData();
       formData.append('prompt', prompt);
       formData.append('context', noteContent.slice(0, 8000));
+      // Send chat history (prior to current prompt) for conversational context
+      formData.append('history', JSON.stringify(history));
 
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
@@ -43,58 +45,98 @@ export function useChatHistory(noteContent: string) {
         return { error: 'COMMUNICATION_ERROR' };
       }
 
-      // Read SSE stream
+      // Read stream
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulated = '';
+      let isStreaming = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        
+        // Detect if this is an SSE (Server-Sent Events) stream
+        if (!isStreaming && chunk.includes('data: ')) {
+          isStreaming = true;
+        }
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw = line.slice(6).trim();
-          if (!raw) continue;
+        if (isStreaming) {
+          const lines = chunk.split('\n');
 
-          try {
-            const parsed = JSON.parse(raw);
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const raw = line.slice(6).trim();
+            if (!raw) continue;
 
-            if (parsed.error) {
-              if (parsed.error === 'RATE_LIMIT_REACHED') {
-                setHistory(prev => prev.slice(0, -2)); // remove user + placeholder
-                return { error: 'RATE_LIMIT_REACHED' };
+            try {
+              const parsed = JSON.parse(raw);
+
+              if (parsed.error) {
+                if (parsed.error === 'RATE_LIMIT_REACHED') {
+                  setHistory(prev => prev.slice(0, -2)); // remove user + placeholder
+                  return { error: 'RATE_LIMIT_REACHED' };
+                }
+                setHistory(prev => [
+                  ...prev.slice(0, -1),
+                  { role: 'assistant', content: 'Something went wrong. Please try again.' },
+                ]);
+                return { error: 'COMMUNICATION_ERROR' };
               }
-              setHistory(prev => [
-                ...prev.slice(0, -1),
-                { role: 'assistant', content: 'Something went wrong. Please try again.' },
-              ]);
-              return { error: 'COMMUNICATION_ERROR' };
-            }
 
-            if (parsed.token !== undefined) {
-              accumulated += parsed.token;
-              // Update the last message (placeholder) with accumulated text
-              setHistory(prev => [
-                ...prev.slice(0, -1),
-                { role: 'assistant', content: accumulated },
-              ]);
-            }
+              if (parsed.token !== undefined) {
+                accumulated += parsed.token;
+                // Update the last message (placeholder) with accumulated text
+                setHistory(prev => [
+                  ...prev.slice(0, -1),
+                  { role: 'assistant', content: accumulated },
+                ]);
+              }
 
-            if (parsed.done) break;
-          } catch {
-            // Malformed JSON line — skip
+              if (parsed.done) break;
+            } catch {
+              // Malformed JSON line — skip
+            }
           }
+        } else {
+          // Accumulate raw JSON string to parse as a whole
+          accumulated += chunk;
+        }
+      }
+
+      // Parse non-streaming JSON response if fallback occurred
+      if (!isStreaming && accumulated) {
+        try {
+          const parsed = JSON.parse(accumulated);
+          if (parsed.answer) {
+            setHistory(prev => [
+              ...prev.slice(0, -1),
+              { role: 'assistant', content: parsed.answer },
+            ]);
+          } else {
+            setHistory(prev => [
+              ...prev.slice(0, -1),
+              { role: 'assistant', content: accumulated },
+            ]);
+          }
+        } catch {
+          // Fallback if not valid JSON
+          setHistory(prev => [
+            ...prev.slice(0, -1),
+            { role: 'assistant', content: accumulated },
+          ]);
         }
       }
 
       return { error: null };
-    } catch (err: any) {
+    } catch (err) {
       console.error('Chat error:', err);
-      if (err?.message?.includes('429') || err?.status === 429) {
+      const status = typeof err === 'object' && err !== null && 'status' in err 
+        ? (err as Record<string, unknown>).status 
+        : undefined;
+      const message = err instanceof Error ? err.message : '';
+      if (message.includes('429') || status === 429) {
         setHistory(prev => prev.slice(0, -2));
         return { error: 'RATE_LIMIT_REACHED' };
       }

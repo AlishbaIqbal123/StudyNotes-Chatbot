@@ -404,7 +404,7 @@ export default function NoteView({ id }: { id: string }) {
       >
         <div className="flex items-center justify-between mb-10 px-6 pt-6">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#E60023] rounded-xl flex items-center justify-center text-white"><BookOpen className="w-5 h-5" /></div>
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white"><BookOpen className="w-5 h-5" /></div>
             {!isSidebarCollapsed && <span className="font-black text-lg">Lumina</span>}
           </Link>
           <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="p-2 hover:bg-muted rounded-lg"><Menu className="w-4 h-4" /></button>
@@ -423,7 +423,7 @@ export default function NoteView({ id }: { id: string }) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as TabType)}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-sm ${activeTab === tab.id ? 'bg-[#E60023] text-white shadow-lg' : 'hover:bg-muted text-muted-foreground'}`}
+              className={`w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-sm ${activeTab === tab.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'hover:bg-muted text-muted-foreground'}`}
             >
               <tab.icon className="w-5 h-5 shrink-0" />
               {!isSidebarCollapsed && <span className="truncate">{tab.label}</span>}
@@ -477,8 +477,8 @@ export default function NoteView({ id }: { id: string }) {
                             fontFamily: "'Playfair Display', serif",
                             fontSize: '2.6rem',
                             fontWeight: 900,
-                            color: '#E60023',
-                            borderBottom: '3px solid #E60023',
+                            color: 'var(--primary)',
+                            borderBottom: '3px solid var(--primary)',
                             paddingBottom: '0.5rem',
                             marginTop: '3rem',
                             marginBottom: '1.5rem',
@@ -489,7 +489,7 @@ export default function NoteView({ id }: { id: string }) {
                           <h2 style={{
                             fontSize: '1.9rem',
                             fontWeight: 800,
-                            borderLeft: '5px solid #E60023',
+                            borderLeft: '5px solid var(--primary)',
                             paddingLeft: '1rem',
                             marginTop: '2.5rem',
                             marginBottom: '1rem',
@@ -500,7 +500,7 @@ export default function NoteView({ id }: { id: string }) {
                           <h3 style={{
                             fontSize: '1.35rem',
                             fontWeight: 700,
-                            color: '#E60023',
+                            color: 'var(--primary)',
                             marginTop: '2rem',
                             marginBottom: '0.75rem',
                             letterSpacing: '0.02em'
@@ -526,8 +526,8 @@ export default function NoteView({ id }: { id: string }) {
                         ),
                         strong: ({ children }) => (
                           <strong style={{
-                            backgroundColor: '#FFF3CD',
-                            color: '#E60023',
+                            backgroundColor: 'rgba(30, 64, 175, 0.08)',
+                            color: 'var(--primary)',
                             padding: '1px 5px',
                             borderRadius: '3px',
                             fontWeight: 700
@@ -535,14 +535,14 @@ export default function NoteView({ id }: { id: string }) {
                         ),
                         em: ({ children }) => (
                           <em style={{
-                            color: '#5E7B5A',
+                            color: '#10B981',
                             fontStyle: 'italic'
                           }}>{children}</em>
                         ),
                         blockquote: ({ children }) => (
                           <blockquote style={{
-                            background: 'linear-gradient(to right, rgba(230,0,35,0.06), transparent)',
-                            borderLeft: '4px solid #E60023',
+                            background: 'linear-gradient(to right, rgba(30, 64, 175, 0.06), transparent)',
+                            borderLeft: '4px solid var(--secondary)',
                             padding: '0.875rem 1.25rem',
                             borderRadius: '0 0.75rem 0.75rem 0',
                             margin: '1.25rem 0',
@@ -582,7 +582,7 @@ export default function NoteView({ id }: { id: string }) {
                               minWidth: '8px',
                               height: '8px',
                               borderRadius: '50%',
-                              backgroundColor: '#E60023',
+                              backgroundColor: 'var(--primary)',
                               marginTop: '0.55rem',
                               flexShrink: 0
                             }} />
@@ -594,7 +594,7 @@ export default function NoteView({ id }: { id: string }) {
                             width: '100%',
                             overflowX: 'auto',
                             borderRadius: '0.75rem',
-                            border: '1px solid rgba(230,0,35,0.15)',
+                            border: '1px solid var(--border)',
                             boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
                             WebkitOverflowScrolling: 'touch',
                             margin: '1.25rem 0',
@@ -607,53 +607,53 @@ export default function NoteView({ id }: { id: string }) {
                               fontSize: '0.875rem',
                               textAlign: 'left',
                               tableLayout: 'auto',
-                              margin: 0,
-                            }}>{children}</table>
-                          </div>
-                        ),
-                        thead: ({ children }) => (
-                          <thead style={{
-                            backgroundColor: '#1a1a2e',
-                            color: '#ffffff',
-                          }}>{children}</thead>
-                        ),
-                        th: ({ children }) => (
-                          <th style={{
-                            padding: '0.75rem 1rem',
-                            fontWeight: 800,
-                            fontSize: '0.72rem',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.06em',
-                            whiteSpace: 'nowrap',
-                            borderRight: '1px solid rgba(255,255,255,0.12)',
-                            borderBottom: '2px solid rgba(255,255,255,0.15)',
-                            color: '#ffffff',
-                            position: 'relative',
-                            overflow: 'hidden',
-                            resize: 'horizontal',
-                            minWidth: '80px',
-                          }}>{children}</th>
-                        ),
-                        tbody: ({ children }) => (
-                          <tbody>{children}</tbody>
-                        ),
-                        tr: ({ children }: any) => (
-                          <tr style={{ borderBottom: '1px solid rgba(230,0,35,0.08)' }}
-                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(230,0,35,0.03)')}
-                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                          >{children}</tr>
-                        ),
-                        td: ({ children }) => (
-                          <td style={{
-                            padding: '0.875rem 1.25rem',
-                            fontSize: '0.875rem',
-                            verticalAlign: 'top',
-                            lineHeight: 1.6,
-                            borderRight: '1px solid rgba(230,0,35,0.08)',
-                            borderBottom: '1px solid rgba(230,0,35,0.08)',
-                            wordBreak: 'break-word',
-                            minWidth: '100px',
-                          }}>{children}</td>
+                               margin: 0,
+                             }}>{children}</table>
+                           </div>
+                         ),
+                         thead: ({ children }) => (
+                           <thead style={{
+                             backgroundColor: 'var(--sidebar-bg)',
+                             color: '#ffffff',
+                           }}>{children}</thead>
+                         ),
+                         th: ({ children }) => (
+                           <th style={{
+                             padding: '0.75rem 1rem',
+                             fontWeight: 800,
+                             fontSize: '0.72rem',
+                             textTransform: 'uppercase',
+                             letterSpacing: '0.06em',
+                             whiteSpace: 'nowrap',
+                             borderRight: '1px solid rgba(255,255,255,0.12)',
+                             borderBottom: '2px solid rgba(255,255,255,0.15)',
+                             color: '#ffffff',
+                             position: 'relative',
+                             overflow: 'hidden',
+                             resize: 'horizontal',
+                             minWidth: '80px',
+                           }}>{children}</th>
+                         ),
+                         tbody: ({ children }) => (
+                           <tbody>{children}</tbody>
+                         ),
+                         tr: ({ children }: any) => (
+                           <tr style={{ borderBottom: '1px solid var(--border)' }}
+                             onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
+                             onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                           >{children}</tr>
+                         ),
+                         td: ({ children }) => (
+                           <td style={{
+                             padding: '0.875rem 1.25rem',
+                             fontSize: '0.875rem',
+                             verticalAlign: 'top',
+                             lineHeight: 1.6,
+                             borderRight: '1px solid var(--border)',
+                             borderBottom: '1px solid var(--border)',
+                             wordBreak: 'break-word',
+                             minWidth: '100px',
+                           }}>{children}</td>
                         ),
                         code({ node, inline, className, children, ...props }: any) {
                           const match = /language-mermaid/.exec(className || '')
@@ -724,23 +724,23 @@ export default function NoteView({ id }: { id: string }) {
                           // Inline code
                           return (
                             <code style={{
-                              backgroundColor: 'rgba(230,0,35,0.07)',
-                              color: '#E60023',
+                              backgroundColor: 'rgba(124,58,237,0.07)',
+                              color: 'var(--primary)',
                               padding: '1px 6px',
                               borderRadius: '4px',
                               fontFamily: "'Fira Code', 'Consolas', monospace",
                               fontSize: '0.82em',
-                              border: '1px solid rgba(230,0,35,0.15)',
+                              border: '1px solid rgba(124,58,237,0.15)',
                             }} {...props}>{children}</code>
                           )
                         },
                         a: ({ href, children }) => (
                           <a href={href} target="_blank" rel="noopener noreferrer"
                             style={{
-                              color: '#E60023',
+                              color: 'var(--primary)',
                               fontWeight: 600,
                               textDecoration: 'underline',
-                              textDecorationColor: 'rgba(230,0,35,0.3)'
+                              textDecorationColor: 'rgba(124,58,237,0.3)'
                             }}
                           >{children}</a>
                         ),
@@ -752,7 +752,7 @@ export default function NoteView({ id }: { id: string }) {
                             margin: '1.75rem 0',
                           }}>
                             <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#E60023', flexShrink: 0 }} />
+                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
                             <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
                           </div>
                         ),
@@ -889,7 +889,7 @@ export default function NoteView({ id }: { id: string }) {
                       <div style={{
                         width: '100px', height: '100px',
                         background: isSpeaking
-                          ? 'linear-gradient(135deg, #E60023, #ff4d6d)'
+                          ? 'linear-gradient(135deg, var(--primary), #a78bfa)'
                           : 'var(--foreground)',
                         borderRadius: '2rem',
                         display: 'flex', alignItems: 'center',
@@ -897,12 +897,12 @@ export default function NoteView({ id }: { id: string }) {
                         margin: '0 auto 2rem',
                         transition: 'all 0.3s ease',
                         boxShadow: isSpeaking
-                          ? '0 0 40px rgba(230,0,35,0.4)'
+                          ? '0 0 40px rgba(124,58,237,0.4)'
                           : 'none'
                       }}>
                         <Mic style={{
                           width: '40px', height: '40px',
-                          color: isSpeaking ? '#fff' : '#E60023',
+                          color: isSpeaking ? '#fff' : 'var(--primary)',
                           animation: isSpeaking ? 'pulse 1s infinite' : 'none'
                         }} />
                       </div>
@@ -934,7 +934,7 @@ export default function NoteView({ id }: { id: string }) {
                         overflow: 'hidden'
                       }}>
                         <div style={{
-                          background: '#E60023',
+                          background: 'var(--primary)',
                           height: '100%',
                           width: `${speechProgress}%`,
                           borderRadius: '999px',
@@ -970,12 +970,12 @@ export default function NoteView({ id }: { id: string }) {
                           style={{
                             width: '72px', height: '72px',
                             borderRadius: '50%',
-                            background: '#E60023',
+                            background: 'var(--primary)',
                             border: 'none',
                             display: 'flex', alignItems: 'center',
                             justifyContent: 'center',
                             cursor: 'pointer',
-                            boxShadow: '0 8px 24px rgba(230,0,35,0.35)',
+                            boxShadow: '0 8px 24px rgba(124,58,237,0.35)',
                             transition: 'transform 0.15s ease'
                           }}
                           onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.95)')}
@@ -994,12 +994,12 @@ export default function NoteView({ id }: { id: string }) {
                             style={{
                               width: '48px', height: '48px',
                               borderRadius: '50%',
-                              border: '2px solid #E60023',
+                              border: '2px solid var(--primary)',
                               background: 'transparent',
                               display: 'flex', alignItems: 'center',
                               justifyContent: 'center',
                               cursor: 'pointer',
-                              color: '#E60023'
+                              color: 'var(--primary)'
                             }}>
                             <Volume2 style={{ width: '20px', height: '20px' }} />
                           </button>
@@ -1015,8 +1015,8 @@ export default function NoteView({ id }: { id: string }) {
                             style={{
                               padding: '0.3rem 0.65rem',
                               borderRadius: '0.5rem',
-                              border: ttsSpeed === s ? '2px solid #E60023' : '2px solid var(--border)',
-                              background: ttsSpeed === s ? '#E60023' : 'transparent',
+                              border: ttsSpeed === s ? '2px solid var(--primary)' : '2px solid var(--border)',
+                              background: ttsSpeed === s ? 'var(--primary)' : 'transparent',
                               color: ttsSpeed === s ? '#fff' : 'var(--muted-foreground)',
                               fontSize: '0.7rem',
                               fontWeight: 800,
@@ -1059,7 +1059,7 @@ export default function NoteView({ id }: { id: string }) {
                           fontWeight: 800,
                           textTransform: 'uppercase',
                           letterSpacing: '0.15em',
-                          color: '#E60023',
+                          color: 'var(--primary)',
                           marginBottom: '1.5rem'
                         }}>Podcast Script</p>
 
@@ -1076,23 +1076,23 @@ export default function NoteView({ id }: { id: string }) {
                               const alexMatch = cleaned.match(/^ALEX:\s*(.+)/)
 
                               if (mayaMatch) {
-                                return (
-                                  <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                                    <span style={{
-                                      flexShrink: 0,
-                                      fontSize: '0.65rem',
-                                      fontWeight: 900,
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.08em',
-                                      color: '#E60023',
-                                      background: 'rgba(230,0,35,0.08)',
-                                      border: '1px solid rgba(230,0,35,0.2)',
-                                      borderRadius: '0.5rem',
-                                      padding: '0.2rem 0.5rem',
-                                      marginTop: '0.15rem',
-                                      minWidth: '52px',
-                                      textAlign: 'center'
-                                    }}>MAYA</span>
+                                  return (
+                                    <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                                      <span style={{
+                                        flexShrink: 0,
+                                        fontSize: '0.65rem',
+                                        fontWeight: 900,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.08em',
+                                        color: 'var(--primary)',
+                                        background: 'rgba(124,58,237,0.08)',
+                                        border: '1px solid rgba(124,58,237,0.2)',
+                                        borderRadius: '0.5rem',
+                                        padding: '0.2rem 0.5rem',
+                                        marginTop: '0.15rem',
+                                        minWidth: '52px',
+                                        textAlign: 'center'
+                                      }}>MAYA</span>
                                     <p style={{ fontSize: '0.9rem', lineHeight: 1.7, margin: 0, opacity: 0.9 }}>
                                       {mayaMatch[1]}
                                     </p>
@@ -1158,21 +1158,21 @@ export default function NoteView({ id }: { id: string }) {
         .flashcard-scene { perspective: 1000px; }
         .backface-hidden { backface-visibility: hidden; }
         .flipped { transform: rotateY(180deg); }
-        ::selection { background: #E60023; color: #fff; }
-        ::-moz-selection { background: #E60023; color: #fff; }
+        ::selection { background: var(--primary); color: #fff; }
+        ::-moz-selection { background: var(--primary); color: #fff; }
 
         .lumina-prose { max-width: 72ch; }
 
         /* Nested list indent levels */
         .lumina-prose ul ul li span:first-child { 
           background: transparent; 
-          border: 2px solid #E60023; 
+          border: 2px solid var(--primary); 
         }
         .lumina-prose ul ul ul li span:first-child { 
           background: transparent;
           border: none;
           width: 4px; height: 4px;
-          background-color: #5E7B5A;
+          background-color: var(--secondary);
         }
 
         @keyframes pulse {

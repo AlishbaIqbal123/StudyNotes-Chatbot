@@ -63,7 +63,7 @@ export default function LoginPage() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.97 }}
               className="flex items-start gap-3 p-4 rounded-2xl text-sm font-medium"
-              style={{ background: 'rgba(230,0,35,0.06)', color: 'var(--primary)', border: '1px solid rgba(230,0,35,0.14)' }}
+              style={{ background: 'rgba(244,63,94,0.06)', color: 'var(--accent)', border: '1px solid rgba(244,63,94,0.14)' }}
             >
               <AlertCircle className="w-4.5 w-[18px] flex-shrink-0 mt-0.5" />
               <span>{error}</span>

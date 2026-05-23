@@ -84,7 +84,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
       {/* Header */}
       <div className="pl-4 pr-6 py-5 border-b border-border flex items-center gap-3 shrink-0">
-        <Bot className="w-5 h-5 text-[#E60023] shrink-0" />
+        <Bot className="w-5 h-5 text-primary shrink-0" />
         <span className="font-black text-xs uppercase tracking-widest text-foreground truncate">
           Lumina Assistant
         </span>
@@ -102,7 +102,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`max-w-[90%] p-3.5 rounded-2xl text-sm break-words overflow-hidden ${m.role === 'user'
-                  ? 'bg-[#E60023] text-white rounded-tr-none shadow-lg shadow-red-500/10'
+                  ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
                   : 'bg-muted rounded-tl-none border border-border/50 text-foreground'
                 }`}
               style={{ wordBreak: 'break-word', overflowWrap: 'break-word', minWidth: 0 }}
@@ -132,7 +132,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         </div>
                       ),
                       th: ({ children }) => (
-                        <th style={{ padding: '0.4rem 0.6rem', background: '#E60023', color: '#fff', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap', borderRight: '1px solid rgba(255,255,255,0.2)' }}>
+                        <th style={{ padding: '0.4rem 0.6rem', background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap', borderRight: '1px solid rgba(255,255,255,0.2)' }}>
                           {children}
                         </th>
                       ),
@@ -167,7 +167,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 key={delay}
                 animate={{ y: [0, -4, 0] }}
                 transition={{ repeat: Infinity, duration: 0.6, delay }}
-                className="w-2 h-2 rounded-full bg-[#E60023]"
+                className="w-2 h-2 rounded-full bg-primary"
               />
             ))}
           </div>
@@ -183,7 +183,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
             <button
               key={p.label}
               onClick={() => onSendMessage(p.val)}
-              className="shrink-0 px-3 py-1.5 rounded-full border border-border bg-background text-[10px] font-black uppercase tracking-widest hover:border-[#E60023] hover:text-[#E60023] transition-all whitespace-nowrap"
+              className="shrink-0 px-3 py-1.5 rounded-full border border-border bg-background text-[10px] font-black uppercase tracking-widest hover:border-primary hover:text-primary transition-all whitespace-nowrap"
             >
               {p.label}
             </button>
@@ -197,12 +197,12 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && onSendMessage()}
             placeholder="Ask anything..."
             disabled={loading}
-            className="w-full bg-muted rounded-2xl pl-5 pr-14 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E60023]/20 disabled:opacity-50 transition-all border border-transparent focus:border-[#E60023]/30"
+            className="w-full bg-muted rounded-2xl pl-5 pr-14 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 transition-all border border-transparent focus:border-primary/30"
           />
           <button
             onClick={() => onSendMessage()}
             disabled={loading || !prompt.trim()}
-            className="absolute right-2 top-1.5 w-9 h-9 bg-[#E60023] text-white rounded-xl flex items-center justify-center disabled:opacity-30 shadow-lg shadow-red-500/20 active:scale-95 transition-all"
+            className="absolute right-2 top-1.5 w-9 h-9 bg-primary text-white rounded-xl flex items-center justify-center disabled:opacity-30 shadow-lg shadow-primary/20 active:scale-95 transition-all"
           >
             <Send className="w-3.5 h-3.5" />
           </button>

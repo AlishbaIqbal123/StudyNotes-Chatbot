@@ -1,0 +1,2 @@
+245: '{compressed}\n'
+249: '{image_refs}\n'

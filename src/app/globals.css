@@ -11,27 +11,31 @@
 }
 
 :root {
-  --background: #FFFBF9;
-  --foreground: #160E0C;
+  --background: #F4F7FC; /* Curated Cool Royal-White */
+  --foreground: #0A1128; /* Deep Royal Navy text */
   --card: #FFFFFF;
-  --primary: #E60023;
-  --border: #D8D1CE; /* Darkened for visibility */
-  --muted: #f5f1f0; /* Darkened slightly */
-  --muted-foreground: #6B5B58;
-  --sidebar-bg: #1C1412; /* Dark sidebar for auth pages */
-  --sidebar-foreground: #FFFBF9;
+  --primary: #1E40AF; /* Royal Blue */
+  --border: #E2EBF6; /* Royal Blue-tinted border */
+  --muted: #EEF3FA; /* Cool Navy Muted background */
+  --muted-foreground: #5C6E91; /* Slate Navy */
+  --sidebar-bg: #0A1128; /* Deep Navy for sidebar */
+  --sidebar-foreground: #F4F7FC;
+  --secondary: #D97706; /* Shiny Gold */
+  --accent: #F59E0B; /* Bright Gold */
 }
 
 .dark {
-  --background: #0F0807;
-  --foreground: #FFFBF9;
-  --card: #1C1412;
-  --primary: #FF385C;
-  --border: #2D1A12;
-  --muted: #1C1412;
-  --muted-foreground: #A89693;
-  --sidebar-bg: #160E0C;
-  --sidebar-foreground: #FFFBF9;
+  --background: #050B1E; /* Deep Royal Navy Space */
+  --foreground: #F4F7FC; /* Royal White text */
+  --card: #0D1530; /* Dark Royal Navy Card */
+  --primary: #3B82F6; /* Glowing Royal Blue */
+  --border: #1E2E5D; /* Dark Navy border */
+  --muted: #131E3D;
+  --muted-foreground: #8C9EB8; /* Muted slate navy */
+  --sidebar-bg: #050B1E;
+  --sidebar-foreground: #F4F7FC;
+  --secondary: #F59E0B; /* Shiny Gold */
+  --accent: #FBBF24; /* Bright Shiny Gold */
 }
 
 body {
@@ -45,13 +49,13 @@ h1, h2, h3 { font-family: 'Playfair Display', serif; }
 h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
 
 .glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(22, 14, 12, 0.1);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .dark .glass {
-  background: rgba(28, 20, 18, 0.8);
+  background: rgba(19, 27, 46, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -65,12 +69,12 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
   justify-content: center;
   gap: 0.75rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 14px rgba(230, 0, 35, 0.15);
+  box-shadow: 0 4px 14px rgba(30, 64, 175, 0.15);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(230, 0, 35, 0.25);
+  box-shadow: 0 8px 25px rgba(30, 64, 175, 0.25);
   opacity: 0.95;
 }
 
@@ -85,9 +89,9 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
 }
 
 .btn-secondary {
-  background: var(--surface-container-low);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--foreground);
-  border: 1px solid var(--border-faint);
+  border: 1px solid var(--border);
   border-radius: 1.25rem;
   font-weight: 600;
   display: flex;
@@ -95,11 +99,12 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
   justify-content: center;
   gap: 0.75rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(12px);
 }
 
 .btn-secondary:hover {
-  background: var(--muted);
-  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--primary);
   transform: scale(1.01);
 }
 
@@ -124,7 +129,7 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
   outline: none;
   border-color: var(--primary);
   background: var(--background);
-  box-shadow: 0 0 0 5px rgba(230, 0, 35, 0.08);
+  box-shadow: 0 0 0 5px rgba(30, 64, 175, 0.08);
   transform: translateY(-1px);
 }
 
@@ -483,7 +488,7 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
 }
 
 .lumina-prose tbody tr:hover td {
-  background: rgba(230, 0, 35, 0.03);
+  background: rgba(30, 64, 175, 0.03);
 }
 
 /* Table wrapper — full width, resizable by user */
@@ -492,7 +497,7 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
   margin: 1.25rem 0;
   overflow-x: auto;
   border-radius: 0.75rem;
-  border: 1px solid rgba(230, 0, 35, 0.15);
+  border: 1px solid rgba(30, 64, 175, 0.15);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
   -webkit-overflow-scrolling: touch;
   width: 100%;
@@ -532,4 +537,85 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
 .backface-hidden {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+}
+
+/* ── Amethyst UI Redesign Elements ── */
+.ambient-glow-1 {
+  position: absolute;
+  top: -10%;
+  left: -10%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(30, 64, 175, 0.08) 0%, transparent 60%);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+  animation: float-glow 20s infinite alternate ease-in-out;
+}
+
+.ambient-glow-2 {
+  position: absolute;
+  bottom: -10%;
+  right: -10%;
+  width: 45vw;
+  height: 45vw;
+  background: radial-gradient(circle, rgba(217, 119, 6, 0.06) 0%, transparent 60%);
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+  animation: float-glow 25s infinite alternate-reverse ease-in-out;
+}
+
+@keyframes float-glow {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(5%, 5%) scale(1.1); }
+  100% { transform: translate(-5%, -5%) scale(0.95); }
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px 0 rgba(30, 64, 175, 0.03);
+}
+
+.dark .glass-card {
+  background: rgba(13, 21, 48, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--muted) 25%, rgba(59, 130, 246, 0.06) 50%, var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: shimmer-load 1.6s infinite linear;
+}
+
+@keyframes shimmer-load {
+  to { background-position-x: -200%; }
+}
+
+/* Premium Gold Shimmer Utilities */
+.text-gold {
+  background: linear-gradient(135deg, #FBBF24 0%, #D97706 50%, #F59E0B 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+}
+
+.bg-gold-gradient {
+  background: linear-gradient(135deg, #FBBF24 0%, #D97706 100%);
+}
+
+.border-gold {
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.border-gold-hover:hover {
+  border-color: #F59E0B;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.1);
+}
+
+.shadow-gold-glow {
+  box-shadow: 0 10px 30px -10px rgba(245, 158, 11, 0.3);
 }

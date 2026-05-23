@@ -107,10 +107,10 @@ export default function ReportsPage() {
   }, [user?.id]);
 
   const statCards = [
-    { label: 'Total Notes', value: stats.totalNotes, icon: BookOpen, color: '#E60023', bg: 'bg-red-500/10' },
-    { label: 'Flashcards', value: stats.totalFlashcards, icon: Layers, color: '#3B9BC8', bg: 'bg-sky-500/10' },
-    { label: 'Quiz Questions', value: stats.totalQuizzes, icon: BrainCircuit, color: '#5E7B5A', bg: 'bg-green-500/10' },
-    { label: 'This Month', value: stats.thisMonthNotes, icon: Calendar, color: '#7C6FCD', bg: 'bg-purple-500/10' },
+    { label: 'Total Notes', value: stats.totalNotes, icon: BookOpen, color: '#1E40AF', bg: 'bg-blue-500/10' },
+    { label: 'Flashcards', value: stats.totalFlashcards, icon: Layers, color: '#3B82F6', bg: 'bg-sky-500/10' },
+    { label: 'Quiz Questions', value: stats.totalQuizzes, icon: BrainCircuit, color: '#F59E0B', bg: 'bg-amber-500/10' },
+    { label: 'This Month', value: stats.thisMonthNotes, icon: Calendar, color: '#D97706', bg: 'bg-amber-500/10' },
   ];
 
   return (
@@ -190,11 +190,11 @@ export default function ReportsPage() {
               {loading
                 ? [...Array(5)].map((_, i) => (
                   <div key={i} className="grid grid-cols-12 gap-4 px-8 py-5 border-b border-border/50">
-                    <div className="col-span-5 h-4 rounded-full shimmer" />
-                    <div className="col-span-2 h-4 rounded-full shimmer mx-auto w-16" />
-                    <div className="col-span-2 h-4 rounded-full shimmer mx-auto w-10" />
-                    <div className="col-span-2 h-4 rounded-full shimmer mx-auto w-10" />
-                    <div className="col-span-1 h-4 rounded-full shimmer ml-auto w-14" />
+                    <div className="col-span-5 h-4 rounded-full skeleton-shimmer" />
+                    <div className="col-span-2 h-4 rounded-full skeleton-shimmer mx-auto w-16" />
+                    <div className="col-span-2 h-4 rounded-full skeleton-shimmer mx-auto w-10" />
+                    <div className="col-span-2 h-4 rounded-full skeleton-shimmer mx-auto w-10" />
+                    <div className="col-span-1 h-4 rounded-full skeleton-shimmer ml-auto w-14" />
                   </div>
                 ))
                 : notes.map((note, i) => {
@@ -241,14 +241,7 @@ export default function ReportsPage() {
         )}
       </div>
 
-      <style jsx global>{`
-        .shimmer {
-          background: linear-gradient(90deg, var(--muted) 25%, var(--card) 50%, var(--muted) 75%);
-          background-size: 200% 100%;
-          animation: shimmer 1.5s infinite linear;
-        }
-        @keyframes shimmer { to { background-position-x: -200%; } }
-      `}</style>
+      {/* Utilizes global skeleton-shimmer */}
     </DashboardLayout>
   );
 }

@@ -21,11 +21,10 @@ const getTypeIcon = (type: string) => {
 };
 
 const palettes = [
-  { from: 'color-mix(in srgb, var(--atelier-crimson), transparent 90%)', to: 'color-mix(in srgb, var(--atelier-crimson), transparent 85%)', accent: 'var(--atelier-crimson)', shadow: 'rgba(230,0,35,0.1)' },
-  { from: 'color-mix(in srgb, var(--atelier-sky), transparent 90%)', to: 'color-mix(in srgb, var(--atelier-sky), transparent 85%)', accent: 'var(--atelier-sky)', shadow: 'rgba(59,155,200,0.1)' },
-  { from: 'color-mix(in srgb, var(--atelier-sage), transparent 90%)', to: 'color-mix(in srgb, var(--atelier-sage), transparent 85%)', accent: 'var(--atelier-sage)', shadow: 'rgba(94,123,90,0.1)' },
-  { from: 'color-mix(in srgb, var(--atelier-lavender), transparent 90%)', to: 'color-mix(in srgb, var(--atelier-lavender), transparent 85%)', accent: 'var(--atelier-lavender)', shadow: 'rgba(124,111,205,0.1)' },
-  { from: 'color-mix(in srgb, var(--atelier-orange), transparent 90%)', to: 'color-mix(in srgb, var(--atelier-orange), transparent 85%)', accent: 'var(--atelier-orange)', shadow: 'rgba(200,85,42,0.1)' },
+  { from: 'color-mix(in srgb, #1E40AF, transparent 92%)', to: 'color-mix(in srgb, #1E40AF, transparent 86%)', accent: '#1E40AF', shadow: 'rgba(30,64,175,0.1)' },
+  { from: 'color-mix(in srgb, #F59E0B, transparent 92%)', to: 'color-mix(in srgb, #F59E0B, transparent 86%)', accent: '#F59E0B', shadow: 'rgba(245,158,11,0.1)' },
+  { from: 'color-mix(in srgb, #3B82F6, transparent 92%)', to: 'color-mix(in srgb, #3B82F6, transparent 86%)', accent: '#3B82F6', shadow: 'rgba(59,130,246,0.1)' },
+  { from: 'color-mix(in srgb, #D97706, transparent 92%)', to: 'color-mix(in srgb, #D97706, transparent 86%)', accent: '#D97706', shadow: 'rgba(217,119,6,0.1)' },
 ];
 
 export default function DashboardPage() {
@@ -161,11 +160,63 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Stats Grid Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {/* Focus Time */}
+          <div className="p-6 rounded-[2rem] bg-card border border-border hover:border-primary/20 transition-all duration-300 relative overflow-hidden group">
+            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-primary/5 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-primary" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Focus Time</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold tracking-tight text-foreground">24.5</span>
+              <span className="text-sm font-bold text-muted-foreground">hrs</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">Active study workspace sessions</p>
+          </div>
+
+          {/* New Concepts */}
+          <div className="p-6 rounded-[2rem] bg-card border border-border hover:border-gold transition-all duration-300 relative overflow-hidden group">
+            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-secondary/5 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-amber-500" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">New Concepts</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold tracking-tight text-gold">142</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">Unique ideas synthesized by Lumina AI</p>
+          </div>
+
+          {/* Retention */}
+          <div className="p-6 rounded-[2rem] bg-card border border-border hover:border-primary/20 transition-all duration-300 relative overflow-hidden group">
+            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-primary/5 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-primary" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Retention Rate</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold tracking-tight text-foreground">88</span>
+              <span className="text-sm font-bold text-muted-foreground">%</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">Spaced recall target retention score</p>
+          </div>
+        </div>
+
         {/* LOADING SHIMMER GRID */}
         {loading && (
           <div className="masonry-grid-view">
             {[280, 420, 320, 380, 300, 350, 400, 310].map((h, i) => (
-              <div key={i} className={`shimmer rounded-[2.5rem]`} style={{ height: h }} />
+              <div key={i} className="skeleton-shimmer rounded-[2.5rem] relative overflow-hidden" style={{ height: h }}>
+                 <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 to-transparent" />
+              </div>
             ))}
           </div>
         )}
@@ -194,121 +245,216 @@ export default function DashboardPage() {
         )}
 
         {/* PIN GRID */}
-        {!loading && filteredNotes.length > 0 && (
-          <div className="masonry-grid-view">
-            {filteredNotes.map((note, idx) => {
-              const type = note.source_type || 'file';
-              const Icon = getTypeIcon(type);
-              const palette = palettes[idx % palettes.length];
-              const date = note.createdAt
-                ? new Date(note.createdAt.seconds ? note.createdAt.seconds * 1000 : note.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                : 'Recent Archive';
+        {!loading && filteredNotes.length > 0 && (() => {
+          // Generate heterogeneous list
+          const itemsToRender: any[] = [];
+          let noteInserted = 0;
 
-              return (
-                <motion.div
-                  key={note.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05, duration: 0.5 }}
-                  className="group relative"
-                >
-                  {/* Management Dropdown */}
-                  <div className="absolute top-6 right-6 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenMenu(openMenu === note.id ? null : note.id); }}
-                      className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-md shadow-xl flex items-center justify-center text-zinc-900 hover:bg-primary hover:text-white transition-all"
+          for (let i = 0; i < Math.max(filteredNotes.length + 2, 4); i++) {
+            if (i === 1) {
+              itemsToRender.push({
+                id: 'quote-card-default',
+                renderType: 'quote',
+                quote: "“The capacity to learn is a gift; the ability to learn is a skill; the willingness to learn is a choice.”",
+                author: "Brian Herbert"
+              });
+            } else if (i === 3) {
+              itemsToRender.push({
+                id: 'action-card-default',
+                renderType: 'action',
+                title: "Advanced Calculus II",
+                desc: "Master limits, derivatives, integrals, and vector analysis with our smart flashcard deck.",
+                subject: "Core Mathematics",
+              });
+            } else {
+              const note = filteredNotes[noteInserted];
+              if (note) {
+                itemsToRender.push({
+                  id: note.id,
+                  renderType: 'note',
+                  data: note,
+                  index: noteInserted
+                });
+                noteInserted++;
+              }
+            }
+          }
+
+          return (
+            <div className="masonry-grid-view">
+              {itemsToRender.map((item, idx) => {
+                if (item.renderType === 'quote') {
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05, duration: 0.5 }}
                     >
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-
-                    <AnimatePresence>
-                      {openMenu === note.id && (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                          className="absolute top-12 right-0 w-48 rounded-2xl bg-white shadow-2xl border border-zinc-100 p-2 overflow-hidden"
-                        >
-                          <button
-                            onClick={() => handleRename(note.id, !!note.isGuest)}
-                            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-zinc-50 text-sm font-bold text-zinc-700 transition-colors"
-                          >
-                            Rename Archive
-                          </button>
-                          <button
-                            onClick={() => handleDelete(note.id, !!note.isGuest)}
-                            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-50 text-sm font-bold text-red-600 transition-colors"
-                          >
-                            Delete Permanently
-                          </button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  <Link href={`/notes?id=${note.id}`}>
-                    <div className="pin-card-outer relative overflow-hidden flex flex-col rounded-[2.5rem] bg-card border border-border hover:border-primary/20 transition-all duration-700 hover:-translate-y-2 hover:shadow-[0_48px_96px_-32px_rgba(0,0,0,0.15)]">
-
-                      {/* Pinterest Pin Visual */}
-                      <div className="relative overflow-hidden aspect-[16/11] w-full bg-muted/10 min-h-[220px]">
-                        <img
-                          src={`https://image.pollinations.ai/prompt/${encodeURIComponent(note.visual_prompt || note.title || 'academic study artwork')}?width=600&height=400&nologo=true&seed=${note.id}`}
-                          className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                          alt={note.title}
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${note.id}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
-                          }}
-                        />
-
-                        {/* Hover Overlay */}
-                        <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                        {/* Floaties */}
-                        <div className="absolute top-4 left-4 z-20">
-                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-sm shadow-xl">
-                            <Icon className="w-3 h-3" style={{ color: palette.accent }} />
-                            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: palette.accent, fontFamily: "'Space Grotesk', sans-serif" }}>
-                              {type}
-                            </span>
-                          </div>
+                      <div className="p-8 rounded-[2.5rem] bg-card border border-border border-l-4 border-l-amber-500 hover:border-gold hover:shadow-gold-glow transition-all duration-500 flex flex-col justify-between min-h-[280px] group">
+                        <div className="text-amber-500 font-bold text-3xl opacity-30 leading-none">“</div>
+                        <p className="text-base italic font-semibold leading-relaxed font-serif text-foreground opacity-90 my-2">
+                          {item.quote}
+                        </p>
+                        <div className="flex items-center justify-between pt-4 border-t border-muted">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Aesthetic Quote</span>
+                          <span className="text-xs font-bold text-gold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                            — {item.author}
+                          </span>
                         </div>
+                      </div>
+                    </motion.div>
+                  );
+                }
 
-                        {note.isGuest && (
-                          <div className="absolute bottom-4 left-4 z-20">
-                            <div className="px-2 py-0.5 rounded bg-primary/20 backdrop-blur-md text-[8px] font-black uppercase tracking-widest text-primary border border-primary/20">
-                              Guest Archive
+                if (item.renderType === 'action') {
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05, duration: 0.5 }}
+                    >
+                      <div className="p-8 rounded-[2.5rem] bg-[#0A1128] text-white border border-white/10 hover:border-gold hover:shadow-gold-glow transition-all duration-500 flex flex-col justify-between min-h-[300px] relative overflow-hidden group">
+                        <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl group-hover:scale-125 transition-transform" />
+                        <div>
+                          <div className="flex items-center justify-between mb-6">
+                            <span className="px-3 py-1 rounded-full bg-white/10 text-white text-[9px] font-black uppercase tracking-widest">
+                              {item.subject}
+                            </span>
+                            <Sparkles className="w-4 h-4 text-amber-400 fill-amber-400 animate-pulse" />
+                          </div>
+                          <h3 className="text-2xl font-black tracking-tight mb-2 font-serif text-white group-hover:text-amber-400 transition-colors">
+                            {item.title}
+                          </h3>
+                          <p className="text-xs text-zinc-400 leading-relaxed">
+                            {item.desc}
+                          </p>
+                        </div>
+                        <Link href="/flashcards" className="mt-8 flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-gold-gradient hover:opacity-90 text-[#0A1128] text-xs font-black uppercase tracking-widest shadow-lg shadow-amber-500/10 transition-all hover:scale-[1.01]">
+                          <span>Study Now</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
+                // Normal note
+                const note = item.data;
+                const type = note.source_type || 'file';
+                const Icon = getTypeIcon(type);
+                const palette = palettes[item.index % palettes.length];
+                const date = note.createdAt
+                  ? new Date(note.createdAt.seconds ? note.createdAt.seconds * 1000 : note.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  : 'Recent Archive';
+
+                return (
+                  <motion.div
+                    key={note.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05, duration: 0.5 }}
+                    className="group relative"
+                  >
+                    {/* Management Dropdown */}
+                    <div className="absolute top-6 right-6 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenMenu(openMenu === note.id ? null : note.id); }}
+                        className="w-10 h-10 rounded-full bg-white/95 backdrop-blur-md shadow-xl flex items-center justify-center text-zinc-900 hover:bg-primary hover:text-white transition-all"
+                      >
+                        <MoreVertical className="w-5 h-5" />
+                      </button>
+
+                      <AnimatePresence>
+                        {openMenu === note.id && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="absolute top-12 right-0 w-48 rounded-2xl bg-white shadow-2xl border border-zinc-100 p-2 overflow-hidden"
+                          >
+                            <button
+                              onClick={() => handleRename(note.id, !!note.isGuest)}
+                              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-zinc-50 text-sm font-bold text-zinc-700 transition-colors"
+                            >
+                              Rename Archive
+                            </button>
+                            <button
+                              onClick={() => handleDelete(note.id, !!note.isGuest)}
+                              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-50 text-sm font-bold text-red-600 transition-colors"
+                            >
+                              Delete Permanently
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    <Link href={`/notes?id=${note.id}`}>
+                      <div className="pin-card-outer relative overflow-hidden flex flex-col rounded-[2.5rem] bg-card border border-border hover:border-gold-hover transition-all duration-700 hover:-translate-y-2 hover:shadow-[0_48px_96px_-32px_rgba(0,0,0,0.15)]">
+
+                        {/* Pinterest Pin Visual */}
+                        <div className="relative overflow-hidden aspect-[16/11] w-full bg-muted/10 min-h-[220px]">
+                          <img
+                            src={`https://image.pollinations.ai/prompt/${encodeURIComponent(note.visual_prompt || note.title || 'academic study artwork')}?width=600&height=400&nologo=true&seed=${note.id}`}
+                            className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                            alt={note.title}
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://api.dicebear.com/7.x/shapes/svg?seed=${note.id}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+                            }}
+                          />
+
+                          {/* Hover Overlay */}
+                          <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                          {/* Floaties */}
+                          <div className="absolute top-4 left-4 z-20">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-sm shadow-xl">
+                              <Icon className="w-3 h-3" style={{ color: palette.accent }} />
+                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: palette.accent, fontFamily: "'Space Grotesk', sans-serif" }}>
+                                {type}
+                              </span>
                             </div>
                           </div>
-                        )}
-                      </div>
 
-                      {/* Card Meta */}
-                      <div className="p-6 lg:p-8">
-                        <h3 className="font-bold text-base lg:text-lg leading-tight mb-4 group-hover:text-primary transition-colors line-clamp-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                          {note.title || 'Untitled Piece'}
-                        </h3>
+                          {note.isGuest && (
+                            <div className="absolute bottom-4 left-4 z-20">
+                              <div className="px-2 py-0.5 rounded bg-primary/20 backdrop-blur-md text-[8px] font-black uppercase tracking-widest text-primary border border-primary/20">
+                                Guest Archive
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
-                        <div className="flex items-center justify-between pt-4 border-t border-muted/50">
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3 h-3 text-muted-foreground" />
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{date}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: palette.accent }} />
-                            <span className="text-[10px] font-black tracking-widest uppercase opacity-40">
-                              {(note.quizzes?.length || 0) + (note.flashcards?.length || 0)} Assets
-                            </span>
+                        {/* Card Meta */}
+                        <div className="p-6 lg:p-8">
+                          <h3 className="font-bold text-base lg:text-lg leading-tight mb-4 group-hover:text-primary transition-colors line-clamp-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                            {note.title || 'Untitled Piece'}
+                          </h3>
+
+                          <div className="flex items-center justify-between pt-4 border-t border-muted/50">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{date}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-1.5 h-1.5 rounded-full" style={{ background: palette.accent }} />
+                              <span className="text-[10px] font-black tracking-widest uppercase opacity-40">
+                                {(note.quizzes?.length || 0) + (note.flashcards?.length || 0)} Assets
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       <style jsx global>{`

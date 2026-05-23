@@ -1,413 +1,741 @@
-# app/services/ai_service.py
+# hf_final_deploy/app/services/ai_service.py
+# v3: Notes are PURE notes (no quiz/flashcard contamination), rich diagrams + images
 import os
 import re
-import requests
 import json
-import urllib.parse
-import random
-import asyncio
-from datetime import datetime
-from typing import Dict, List, Any, Optional
+import requests
+from typing import Dict, List, Any
 
-# ─── CONFIGURATION ────────────────────────────────────────────
-# Primary: Gemini 2.0 Flash Lite (Stable & Fast)
-DEFAULT_MODEL         = "google/gemini-2.0-flash-lite-preview-02-05:free"
-# Fallback: A highly stable older free model
-FALLBACK_MODEL        = "google/gemini-flash-1.5-8b:free"
-MAX_CONTEXT_CHARS     = 15000
-MAX_TOKENS_NOTES      = 2000
-MAX_TOKENS_MATERIALS  = 2000
-API_TIMEOUT_NOTES     = 180
-API_TIMEOUT_MATERIALS = 120
-OPENROUTER_BASE_URL   = "https://openrouter.ai/api/v1/chat/completions"
-LOG_PREFIX            = "[LUMINA]"
-# ──────────────────────────────────────────────────────────────
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+MAX_RAW_CHARS = 30000
 
-class RateLimitError(Exception): pass
-class AIServiceError(Exception): pass
+# Model cascade — tried in order until one succeeds
+# Free models first, paid as last resort
+DOC_MODELS = [
+    "meta-llama/llama-3.3-70b-instruct:free",  # Highly accurate 70B model, free
+    "openai/gpt-oss-120b:free",          # Free, 200k ctx, excellent quality
+    "nvidia/nemotron-3-super-120b-a12b:free",  # Free, 262k ctx
+    "openai/gpt-oss-20b:free",           # Free, fast fallback
+    "google/gemini-2.5-pro-preview",     # Paid fallback — only if all free fail
+]
 
-def _log(message: str, level: str = "INFO") -> None:
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    print(f"{LOG_PREFIX} [{level}] {timestamp} — {message}")
+CHAT_MODELS = [
+    "meta-llama/llama-3.3-70b-instruct:free",  # Highly accurate 70B model, free
+    "openai/gpt-oss-120b:free",          # Free, great for chat
+    "openai/gpt-oss-20b:free",           # Free fallback
+    "nvidia/nemotron-3-super-120b-a12b:free",  # Free fallback
+    "google/gemini-2.0-flash-001",       # Paid last resort
+]
 
-def _build_headers() -> Dict[str, str]:
-    return {
-        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+PRIMARY_MODEL = DOC_MODELS[0]  # Used by _call_openrouter default
+
+VALID_MERMAID_KEYWORDS = (
+    "flowchart", "graph", "mindmap", "sequenceDiagram",
+    "classDiagram", "stateDiagram", "erDiagram", "gantt", "pie"
+)
+
+
+class AIServiceError(Exception):
+    pass
+
+
+def _validate_mermaid(diagram: str) -> str:
+    clean = diagram.strip()
+    if not clean:
+        return ""
+    if any(clean.startswith(kw) for kw in VALID_MERMAID_KEYWORDS):
+        return clean
+    for kw in VALID_MERMAID_KEYWORDS:
+        idx = clean.find(kw)
+        if idx != -1:
+            return clean[idx:]
+    print(f"[LUMINA] WARNING: Invalid mermaid discarded: {clean[:60]}")
+    return ""
+
+
+def _call_openrouter(messages: List[Dict], model: str = PRIMARY_MODEL, max_tokens: int = 12000) -> str:
+    """Call a single model. Raises AIServiceError on any failure."""
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        raise AIServiceError("OPENROUTER_API_KEY is not configured.")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://lumina-study.app",
-        "X-Title": "Lumina Study"
+        "HTTP-Referer": "https://lumina-atelier.com",
+        "X-Title": "Lumina Atelier"
     }
+    payload = {"model": model, "messages": messages, "temperature": 0.3, "max_tokens": max_tokens}
+    print(f"[LUMINA] Calling {model} | max_tokens={max_tokens}")
+    try:
+        r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=180)
+        if r.status_code == 429:
+            raise AIServiceError(f"RATE_LIMIT_429: {model}")
+        if r.status_code == 402:
+            raise AIServiceError(f"PAYMENT_REQUIRED_402: {model}")
+        if r.status_code == 400:
+            raise AIServiceError(f"BAD_REQUEST_400: {r.text[:100]}")
+        if r.status_code == 404:
+            raise AIServiceError(f"MODEL_NOT_FOUND_404: {model}")
+        r.raise_for_status()
+        content = r.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+        if not content or len(content.strip()) < 10:
+            raise AIServiceError(f"EMPTY_RESPONSE: {model}")
+        print(f"[LUMINA] {model} → {len(content)} chars")
+        return content
+    except AIServiceError:
+        raise
+    except requests.exceptions.Timeout:
+        raise AIServiceError(f"TIMEOUT: {model}")
+    except Exception as e:
+        raise AIServiceError(f"REQUEST_FAILED: {model}: {e}")
 
-def _call_openrouter(
-    messages: List[Dict[str, str]], 
-    model: str = DEFAULT_MODEL, 
-    max_tokens: int = MAX_TOKENS_NOTES, 
-    timeout: int = API_TIMEOUT_NOTES
-) -> str:
-    def attempt_call(target_model: str, target_timeout: int) -> str:
-        payload = {
-            "model": target_model,
-            "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": max_tokens
-        }
-        _log(f"Attempting API call with model: {target_model}")
+
+def _call_cascade(messages: List[Dict], models: List[str], max_tokens: int = 12000) -> str:
+    """Try each model in order until one succeeds. Only propagates RATE_LIMIT_EXCEEDED."""
+    last_error = None
+    for model in models:
         try:
-            response = requests.post(OPENROUTER_BASE_URL, headers=_build_headers(), json=payload, timeout=target_timeout)
-            if response.status_code == 429:
-                raise RateLimitError("API_RATE_LIMIT_EXCEEDED")
-            
-            if response.status_code != 200:
-                error_detail = response.text
-                _log(f"API ERROR RESPONSE: {error_detail}", level="ERROR")
+            return _call_openrouter(messages, model=model, max_tokens=max_tokens)
+        except AIServiceError as e:
+            err = str(e)
+            # Hard stop on true rate limit (all models exhausted quota)
+            if "RATE_LIMIT_EXCEEDED" in err and "RATE_LIMIT_429" not in err:
+                raise
+            print(f"[LUMINA] Model {model} failed ({err[:60]}), trying next...")
+            last_error = e
+            continue
+    raise AIServiceError(f"All models failed. Last error: {last_error}")
+
+
+def _stream_openrouter(messages: List[Dict], model: str):
+    """Stream response from a single model on OpenRouter."""
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        yield f"data: {json.dumps({'error': 'COMMUNICATION_ERROR', 'message': 'API key missing'})}\n\n"
+        return
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://lumina-atelier.com",
+        "X-Title": "Lumina Atelier"
+    }
+    payload = {"model": model, "messages": messages, "temperature": 0.3, "max_tokens": 2000, "stream": True}
+    print(f"[LUMINA] Stream calling {model}")
+    try:
+        r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=120, stream=True)
+        if r.status_code != 200:
+            raise AIServiceError(f"HTTP_ERROR_{r.status_code}")
+        for line in r.iter_lines():
+            if not line:
+                continue
+            decoded_line = line.decode('utf-8').strip()
+            if decoded_line.startswith("data: "):
+                data_str = decoded_line[6:].strip()
+                if data_str == "[DONE]":
+                    yield f"data: {json.dumps({'done': True})}\n\n"
+                    break
                 try:
-                    error_detail = response.json().get('error', {}).get('message', response.text)
-                except: pass
-                raise AIServiceError(f"API Error ({response.status_code}): {error_detail}")
-            
-            data = response.json()
-            if "error" in data:
-                raise AIServiceError(data["error"].get("message", "Unknown API error"))
-                
-            if "choices" not in data or not data["choices"]:
-                raise AIServiceError(f"No choices returned from AI. Response: {json.dumps(data)}")
-                
-            return data["choices"][0]["message"]["content"]
-        except requests.exceptions.Timeout:
-            raise AIServiceError("API_TIMEOUT")
-        except Exception as e:
-            raise AIServiceError(str(e))
+                    chunk_json = json.loads(data_str)
+                    choices = chunk_json.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield f"data: {json.dumps({'token': content})}\n\n"
+                except:
+                    pass
+    except Exception as e:
+        raise AIServiceError(f"Stream failed for {model}: {e}")
+
+
+def _stream_cascade(messages: List[Dict], models: List[str]):
+    """Stream from each model in order, cascading to the next if connection fails before yielding tokens."""
+    last_error = None
+    for model in models:
+        try:
+            generator = _stream_openrouter(messages, model=model)
+            # Peek at the first token to make sure connection is successful
+            first_item = next(generator)
+            yield first_item
+            for item in generator:
+                yield item
+            return
+        except (AIServiceError, StopIteration) as e:
+            print(f"[LUMINA] Stream model {model} failed ({str(e)[:60]}), trying next...")
+            last_error = e
+            continue
+    yield f"data: {json.dumps({'error': 'COMMUNICATION_ERROR', 'message': str(last_error)})}\n\n"
+
+
+def _fetch_educational_images(topic: str) -> List[Dict]:
+    images = []
+    try:
+        r = requests.get(
+            f"https://en.wikipedia.org/w/api.php?action=query&titles={topic.replace(' ','_')}"
+            f"&prop=pageimages&format=json&pithumbsize=800&pilimit=3",
+            timeout=8
+        )
+        for page in r.json().get("query", {}).get("pages", {}).values():
+            src = page.get("thumbnail", {}).get("source", "")
+            if src:
+                images.append({"url": src, "alt": f"{topic}", "caption": f"{topic} — Wikipedia"})
+    except Exception as e:
+        print(f"[LUMINA] Wiki image failed: {e}")
 
     try:
-        return attempt_call(model, timeout)
+        r = requests.get(
+            f"https://commons.wikimedia.org/w/api.php?action=query&list=search"
+            f"&srsearch={topic}&srnamespace=6&format=json&srlimit=4",
+            timeout=8
+        )
+        for item in r.json().get("query", {}).get("search", [])[:4]:
+            title = item.get("title", "").replace("File:", "").replace(" ", "_")
+            if title:
+                images.append({
+                    "url": f"https://commons.wikimedia.org/wiki/Special:FilePath/{title}?width=800",
+                    "alt": item.get("title", topic).replace("File:", "").replace("_", " "),
+                    "caption": item.get("title", topic).replace("File:", "").replace("_", " ")
+                })
     except Exception as e:
-        _log(f"Primary call failed ({model}): {str(e)}. Retrying with fallback...", level="WARNING")
-        try:
-            return attempt_call(FALLBACK_MODEL, timeout)
-        except Exception as fallback_e:
-            _log(f"Fallback call also failed ({FALLBACK_MODEL}): {str(fallback_e)}", level="ERROR")
-            raise AIServiceError(f"AI Service Failure: {str(fallback_e)}")
+        print(f"[LUMINA] Commons failed: {e}")
 
-def _fix_pollinations_urls(text: str, topic: str = "Knowledge") -> str:
-    # Improved regex to find [IMAGE: description] and convert to pollinations URLs
-    def replace_with_url(match):
-        desc = match.group(1).strip()
-        # Clean description for URL
-        clean_desc = re.sub(r'[^a-zA-Z0-9\s]', '', desc).replace(' ', '%20')
-        seed = random.randint(1000, 9999)
-        url = f"https://image.pollinations.ai/prompt/Professional%20scientific%20illustration%20of%20{clean_desc},%208k,%20clean%20background,%20educational%20style?width=1080&height=1080&nologo=true&seed={seed}&model=flux"
-        return f"\n![{desc}]({url})\n"
+    if len(images) < 3:
+        images += [
+            {"url": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=800", "alt": "Study", "caption": "Academic Study"},
+            {"url": "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?q=80&w=800", "alt": "Books", "caption": "Knowledge"},
+            {"url": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=800", "alt": "Technology", "caption": "Digital Learning"},
+        ]
+    print(f"[LUMINA] Images ready: {len(images)}")
+    return images[:6]
 
-    return re.sub(r'\[IMAGE:\s*(.*?)\]', replace_with_url, text, flags=re.IGNORECASE)
 
-def _parse_robust_markdown(text: str) -> Dict[str, Any]:
-    sections = {}
-    title_match = re.search(r"^# (.*)", text, re.MULTILINE)
-    sections["title"] = title_match.group(1).strip() if title_match else "Study Session"
-    
-    # Split by ## headers
-    parts = re.split(r'\n(?=## )', text)
-    for part in parts:
-        if not part.strip().startswith('##'): continue
-        lines = part.strip().split('\n', 1)
-        header_line = lines[0].replace('##', '').strip()
-        # Clean header for dict key
-        header_key = re.sub(r'[^\w\s]', '', header_line).strip().lower()
+def _compress_source(text: str) -> str:
+    if len(text) <= MAX_RAW_CHARS:
+        return text
+    print(f"[LUMINA] Compressing {len(text)} chars...")
+    chunks = [text[i:i+12000] for i in range(0, len(text), 12000)]
+    summaries = []
+    for i, chunk in enumerate(chunks[:4]):
+        msg = [
+            {"role": "system", "content": "Extract ALL key facts, definitions, statistics, names, dates, examples, and technical terms. Preserve headings. Output as structured bullet points."},
+            {"role": "user", "content": chunk}
+        ]
+        summaries.append(_call_cascade(msg, DOC_MODELS, max_tokens=4000))
+    return "\n\n---SECTION BREAK---\n\n".join(summaries)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 1: PURE DETAILED NOTES — NO quiz, NO flashcards, NO podcast
+# ─────────────────────────────────────────────────────────────────────────────
+def _generate_notes(compressed: str, image_md: str, images: list) -> str:
+    # Build numbered image references so AI can use real URLs
+    image_refs = ""
+    if images:
+        image_refs = "\n".join([
+            f"IMAGE_{i+1}: ![{img['alt']}]({img['url']})"
+            for i, img in enumerate(images[:6]) if img.get("url")
+        ])
+    else:
+        image_refs = "No images available — skip image embedding."
+
+    prompt = """You are a world-class academic educator. Write a COMPLETE, DETAILED, BEAUTIFULLY FORMATTED study guide.
+ 
+SOURCE DOCUMENT (your ONLY source of truth — never invent facts):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{compressed}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 
+REAL IMAGE URLS TO EMBED (use these exact markdown lines in the notes):
+{image_refs}
+ 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL RULES — FOLLOW EXACTLY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. OUTPUT ONLY STUDY NOTES. ABSOLUTELY NO quiz questions, NO flashcards, NO podcast scripts.
+2. Cover EVERY concept, example, and case study from the source. Be EXTREMELY thorough and comprehensive: write dense, detailed paragraphs explaining concepts fully. Do not write brief high-level summaries.
+3. Use RICH markdown: ## headings, ### sub-headings, **bold** key terms, > blockquotes, tables, bullet lists.
+4. Embed at least 4 Mermaid diagrams directly inside the notes at relevant sections.
+5. Embed at least 3 of the provided IMAGE URLs inline using the exact markdown lines given above.
+6. NEVER use filler phrases: "in conclusion", "it is important to note", "as mentioned above", "herein".
+7. MAKE EXPLANATIONS EASY TO UNDERSTAND: Define every technical term step-by-step with a plain-English analogy and real-world example on first use. Explain the 'why' and 'how' behind concepts simply.
+8. Mermaid diagrams MUST use this safe syntax:
+   - Node IDs: simple alphanumeric only (A, B, Node1)
+   - Labels: always in double quotes: A["Label Text"]
+   - Connectors: A --> B or A -->|"label"| B  (NEVER use --["label"]-->)
+   - No special characters (parentheses, braces, brackets) inside node labels, even if double-quoted. (e.g. use A["Step One"] instead of A["Step (1)"])
+   - Use style commands at the end of the diagram to style node classes in Royal Blue and Gold theme colors.
+ 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXACT OUTPUT FORMAT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ 
+# [Specific compelling title from the source]
+ 
+> 📖 **Overview:** [2-3 sentences on the core theme and why it matters]
+ 
+---
+ 
+## [Topic 1 Name from Source]
+ 
+> 💡 **In Simple Words:** [One plain-English sentence explaining this topic in the simplest possible terms]
+> 🧩 **Everyday Analogy:** [A simple, relatable analogy comparing this concept to something common in daily life]
+ 
+[2-3 detailed paragraphs with examples from the source. **Bold** key terms on first use. Explain nuances thoroughly.]
+ 
+### 🔑 Key Points
+- **[Term]**: [Definition + real-world analogy]
+- **[Term]**: [Definition + real-world analogy]
+- **[Term]**: [Definition + real-world analogy]
+ 
+> 🔍 **Deep Insight:** [Critical distinction or surprising fact from the source]
+ 
+### 📊 Comparison Table
+| Aspect | Option A | Option B |
+|--------|----------|----------|
+| [row] | [val] | [val] |
+| [row] | [val] | [val] |
+ 
+### 🗺️ Process Diagram
+ 
+```mermaid
+flowchart LR
+    A["Step 1"] --> B["Step 2"]
+    B --> C["Step 3"]
+    C --> D["Outcome"]
+    style A fill:#1E3A8A,color:#fff,stroke:#F59E0B,stroke-width:2px
+    style B fill:#1F2937,color:#fff,stroke:#1E3A8A,stroke-width:1px
+    style C fill:#F59E0B,color:#1E3A8A,stroke:#1E3A8A,stroke-width:2px
+    style D fill:#1E3A8A,color:#fff,stroke:#F59E0B,stroke-width:2px
+```
+ 
+[EMBED ONE OF THE PROVIDED IMAGE URLS HERE — copy the exact markdown line from the REAL IMAGE URLS section above]
+ 
+> 💡 **Key Takeaway:** [Most important fact from this section in one sentence]
+ 
+---
+ 
+[REPEAT THE ABOVE BLOCK FOR EVERY MAJOR TOPIC IN THE SOURCE — do not skip any topic]
+ 
+---
+ 
+## 📋 Quick Reference Summary
+ 
+| Concept | Plain English | Real Example |
+|---------|--------------|--------------|
+| [term from source] | [simple definition] | [real example] |
+| [term from source] | [simple definition] | [real example] |
+| [term from source] | [simple definition] | [real example] |
+| [term from source] | [simple definition] | [real example] |
+| [term from source] | [simple definition] | [real example] |
+ 
+---
+ 
+## 🎯 Key Takeaways
+ 
+- [Most important point 1 from source]
+- [Most important point 2 from source]
+- [Most important point 3 from source]
+- [Most important point 4 from source]
+- [Most important point 5 from source]
+"""[5:-1].replace("{compressed}", compressed).replace("{image_refs}", image_refs)
+    print("[LUMINA] Generating NOTES (pure notes, real image URLs, safe Mermaid)...")
+    return _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=14000)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 2: QUIZ ONLY — completely separate from notes
+# ─────────────────────────────────────────────────────────────────────────────
+def _generate_quiz(compressed: str) -> str:
+    prompt = f"""Generate 20 multiple-choice quiz questions from this source.
+
+SOURCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{compressed}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULES:
+- Each question tests a SPECIFIC fact from the source.
+- One correct answer, three plausible wrong answers.
+- Output EXACTLY 20 lines, nothing else.
+- Format: Question | OptionA | OptionB | OptionC | OptionD | CorrectLetter
+
+Example:
+What is the capital of France? | London | Paris | Berlin | Madrid | B
+"""
+    print("[LUMINA] Generating QUIZ...")
+    return _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=4000)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 3: FLASHCARDS ONLY — completely separate from notes
+# ─────────────────────────────────────────────────────────────────────────────
+def _generate_flashcards(compressed: str) -> str:
+    prompt = f"""Generate 25 flashcards from this source.
+
+SOURCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{compressed}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULES:
+- Front = exact term or short phrase from source.
+- Back = simple one-sentence explanation (max 20 words).
+- Output EXACTLY 25 lines, nothing else.
+- Format: Term | Definition
+
+Example:
+Photosynthesis | Process where plants convert sunlight into glucose using carbon dioxide and water.
+"""
+    print("[LUMINA] Generating FLASHCARDS...")
+    return _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=3000)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 4: DIAGRAMS — roadmap + mindmap
+# ─────────────────────────────────────────────────────────────────────────────
+def _generate_diagrams(compressed: str) -> str:
+    prompt = f"""Create two Mermaid.js diagrams for this source.
+
+SOURCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{compressed}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OUTPUT EXACTLY:
+
+## [Study Roadmap]
+
+```mermaid
+flowchart TD
+    A["Topic 1"] --> B["Topic 2"]
+    B --> C["Topic 3"]
+    C --> D["Topic 4"]
+    D --> E["Topic 5"]
+    E --> F["Topic 6"]
+    classDef start fill:#10b981,stroke:#059669,color:#fff,stroke-width:2px
+    classDef mid fill:#6366f1,stroke:#4f46e5,color:#fff,stroke-width:1px
+    classDef end fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px
+    class A start
+    class B,C,D,E mid
+    class F end
+```
+
+## [Concept Mind Map]
+
+```mermaid
+mindmap
+  root((Main Topic))
+    Section1
+      Detail1
+      Detail2
+    Section2
+      Detail1
+      Detail2
+    Section3
+      Detail1
+    Section4
+      Detail1
+```
+
+RULES: Use only topics from source. Short labels (max 5 words). No special chars in node IDs.
+"""
+    print("[LUMINA] Generating DIAGRAMS...")
+    return _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=3000)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGE 5: PODCAST SCRIPT
+# ─────────────────────────────────────────────────────────────────────────────
+def _generate_podcast(compressed: str) -> str:
+    prompt = f"""Write an engaging podcast script from this source.
+
+SOURCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{compressed}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Write a 600-800 word dialogue:
+- MAYA: curious student with genuine questions
+- ALEX: friendly expert who explains simply
+
+RULES:
+- ALEX uses ONLY facts from the source.
+- At least 14 exchanges (7 each).
+- Format every line: **MAYA:** text  or  **ALEX:** text
+- No markdown inside the lines (no bold, no bullets).
+"""
+    print("[LUMINA] Generating PODCAST...")
+    return _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=3000)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PARSERS
+# ─────────────────────────────────────────────────────────────────────────────
+def _parse_notes(text: str) -> Dict[str, Any]:
+    title_match = re.search(r"^#(?!#)\s+(.*)", text, re.MULTILINE)
+    title = title_match.group(1).strip() if title_match else "Study Session"
+    return {"title": title, "simplified_notes": text.strip()}
+
+
+def _parse_quiz(text: str) -> List[Dict]:
+    quizzes = []
+    for line in text.strip().split('\n'):
+        line = line.strip()
+        if not line or line.startswith(('|', '-', '#', '`', '=')):
+            continue
+        parts = [p.strip() for p in line.split('|')]
+        if len(parts) >= 6 and parts[0] and len(parts[0]) > 5:
+            quizzes.append({
+                "question": parts[0],
+                "options": parts[1:5],
+                "answer": parts[5]
+            })
+    return quizzes
+
+
+def _parse_flashcards(text: str) -> List[Dict]:
+    cards = []
+    for line in text.strip().split('\n'):
+        line = line.strip()
+        if not line or line.startswith(('|', '-', '#', '`', '=')):
+            continue
+        parts = [p.strip() for p in line.split('|')]
+        if len(parts) >= 2 and parts[0] and parts[1] and len(parts[0]) > 2:
+            cards.append({"front": parts[0], "back": parts[1]})
+    return cards
+
+
+def _parse_diagrams(text: str) -> Dict[str, Any]:
+    data = {"roadmap": "", "mind_map": ""}
+    sections = re.split(r'\n(?=##\s)', text)
+    for section in sections:
+        section = section.strip()
+        lines = section.split('\n', 1)
+        header = lines[0].lower() if lines else ""
         content = lines[1].strip() if len(lines) > 1 else ""
-        
-        # Preserve mermaid blocks — do NOT strip them
-        # Verify mermaid blocks are intact
-        mermaid_count = content.count('```mermaid')
-        _log(f"Mermaid diagrams found in notes: {mermaid_count}")
-        if mermaid_count == 0 and "notes" in header_key:
-            _log("WARNING: No mermaid diagrams in notes", level="WARNING")
-            
-        sections[header_key] = content
-        
-    sections["full_content"] = text
-    return sections
+        clean = content.replace("```mermaid", "").replace("```", "").strip()
+        if any(k in header for k in ['roadmap', 'study path', 'flow']):
+            data["roadmap"] = _validate_mermaid(clean)
+        elif any(k in header for k in ['mind map', 'mindmap', 'concept map']):
+            data["mind_map"] = _validate_mermaid(clean)
+    return data
 
+
+def _parse_podcast(text: str) -> str:
+    sections = re.split(r'\n(?=##\s)', text)
+    for section in sections:
+        lines = section.strip().split('\n', 1)
+        header = lines[0].lower() if lines else ""
+        content = lines[1].strip() if len(lines) > 1 else ""
+        if any(k in header for k in ['audio', 'podcast', 'script', 'lab', 'dialogue']):
+            return content
+    return text.strip()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN AI SERVICE
+# ─────────────────────────────────────────────────────────────────────────────
 class AIService:
-    @staticmethod
-    def get_model_name() -> str:
-        return DEFAULT_MODEL
 
     @staticmethod
-    def _clean_note_formatting(data: dict) -> dict:
-        import re, urllib.parse, random
-        notes = data.get("simplified_notes", "")
-        
-        # Step 1: Remove markdown code fence artifacts 
-        # but PRESERVE mermaid and image blocks
-        notes = re.sub(r'```markdown\s*', '', notes)
-        
-        # Step 2: Fix ALL pollinations URLs to working format
-        def fix_image_url(match):
-            alt = match.group(1)
-            url = match.group(2)
-            
-            if 'pollinations' not in url:
-                return match.group(0)  # not pollinations, leave alone
-            
-            # Extract prompt text from any pollinations format
-            prompt_text = ""
-            for marker in ['/prompt/', '/p/']:
-                if marker in url:
-                    after_marker = url.split(marker, 1)[1]
-                    prompt_text = after_marker.split('?')[0]
-                    break
-            
-            if not prompt_text:
-                return match.group(0)
-            
-            # Clean the prompt text
-            clean = urllib.parse.unquote(prompt_text)
-            clean = clean.replace('%20', ' ').replace('+', ' ')
-            clean = clean.strip()
-            
-            # Re-encode with plus signs (most reliable for pollinations)
-            encoded = clean.replace(' ', '+')
-            seed = random.randint(1000, 9999)
-            
-            fixed_url = (
-                f"https://image.pollinations.ai/prompt/"
-                f"{encoded}"
-                f"?width=1200&height=630&nologo=true&seed={seed}"
-            )
-            _log(f"Fixed image URL for: {alt[:30]}")
-            return f"![{alt}]({fixed_url})"
-        
-        notes = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', fix_image_url, notes)
-        
-        # Step 3: Count images and log
-        image_count = len(re.findall(r'!\[', notes))
-        _log(f"Images in notes after fix: {image_count}")
-        
-        if image_count == 0:
-            _log("No images found — injecting fallback images", 
-                 level="WARNING")
-            # Inject one fallback image at the top of notes
-            topic = data.get("title", "educational concept")
-            topic_encoded = topic.replace(' ', '+')
-            fallback = (
-                f"\n\n![{topic}]"
-                f"(https://image.pollinations.ai/prompt/"
-                f"educational+illustration+{topic_encoded}+detailed+diagram"
-                f"?width=1200&height=630&nologo=true&seed=5555)\n\n"
-            )
-            # Insert after first paragraph
-            parts = notes.split('\n\n', 2)
-            if len(parts) >= 2:
-                notes = parts[0] + '\n\n' + fallback + '\n\n'.join(parts[1:])
-            else:
-                notes = fallback + notes
-        
-        data["simplified_notes"] = notes
-        return data
+    def process_document(
+        text: str,
+        topic: str = "General",
+        source_type: str = "document",
+        source_url: str = "",
+        generation_type: str = "all"
+    ) -> dict:
+        print(f"[LUMINA] Processing | topic={topic} | type={generation_type} | chars={len(text)}")
+
+        valid_types = {"all", "notes", "quiz", "flashcards", "podcast"}
+        if generation_type not in valid_types:
+            generation_type = "all"
+
+        compressed = _compress_source(text)
+        images = _fetch_educational_images(topic)
+        image_md = "\n".join([
+            f'![{img["alt"]}]({img["url"]})\n*{img["caption"]}*'
+            for img in images if img.get("url")
+        ])
+
+        result: Dict[str, Any] = {
+            "title": topic,
+            "simplified_notes": "",
+            "quizzes": [],
+            "flashcards": [],
+            "roadmap": "",
+            "mind_map": "",
+            "podcast_script": "",
+            "visual_prompt": ""
+        }
+
+        # ── STAGE 1: Pure Notes ──────────────────────────
+        if generation_type in ("all", "notes"):
+            try:
+                notes_raw = _generate_notes(compressed, image_md, images)
+                notes_data = _parse_notes(notes_raw)
+                result["title"] = notes_data["title"]
+                notes_text = notes_data["simplified_notes"]
+
+                # Inject images if AI didn't embed enough
+                if images and notes_text.count("![") < 3:
+                    inserts = [
+                        f'\n\n![{img["alt"]}]({img["url"]})\n*{img["caption"]}*\n\n'
+                        for img in images[:4] if img.get("url")
+                    ]
+                    parts = notes_text.split('\n\n')
+                    out = []
+                    img_i = 0
+                    chars = 0
+                    for part in parts:
+                        out.append(part)
+                        chars += len(part)
+                        if img_i < len(inserts) and chars > 800 * (img_i + 1):
+                            out.append(inserts[img_i])
+                            img_i += 1
+                    notes_text = '\n\n'.join(out)
+
+                result["simplified_notes"] = notes_text
+            except AIServiceError as e:
+                if "RATE_LIMIT_EXCEEDED" in str(e):
+                    raise
+                print(f"[LUMINA] Notes failed: {e}")
+                result["simplified_notes"] = f"# {topic}\n\n> Notes generation failed. Please try again.\n\n{text[:2000]}"
+
+        # ── STAGE 2: Quiz ────────────────────────────────
+        if generation_type in ("all", "quiz"):
+            try:
+                quiz_raw = _generate_quiz(compressed)
+                result["quizzes"] = _parse_quiz(quiz_raw)
+                print(f"[LUMINA] Quiz parsed: {len(result['quizzes'])} questions")
+            except AIServiceError as e:
+                if "RATE_LIMIT_EXCEEDED" in str(e):
+                    raise
+                print(f"[LUMINA] Quiz failed: {e}")
+
+        # ── STAGE 3: Flashcards ──────────────────────────
+        if generation_type in ("all", "flashcards"):
+            try:
+                fc_raw = _generate_flashcards(compressed)
+                result["flashcards"] = _parse_flashcards(fc_raw)
+                print(f"[LUMINA] Flashcards parsed: {len(result['flashcards'])} cards")
+            except AIServiceError as e:
+                if "RATE_LIMIT_EXCEEDED" in str(e):
+                    raise
+                print(f"[LUMINA] Flashcards failed: {e}")
+
+        # ── STAGE 4: Diagrams ────────────────────────────
+        if generation_type == "all":
+            try:
+                diag_raw = _generate_diagrams(compressed)
+                diag_data = _parse_diagrams(diag_raw)
+                result["roadmap"] = diag_data["roadmap"]
+                result["mind_map"] = diag_data["mind_map"]
+            except AIServiceError as e:
+                if "RATE_LIMIT_EXCEEDED" in str(e):
+                    raise
+                print(f"[LUMINA] Diagrams failed: {e}")
+
+        # ── STAGE 5: Podcast ─────────────────────────────
+        if generation_type in ("all", "podcast"):
+            try:
+                pod_raw = _generate_podcast(compressed)
+                result["podcast_script"] = _parse_podcast(pod_raw)
+            except AIServiceError as e:
+                if "RATE_LIMIT_EXCEEDED" in str(e):
+                    raise
+                print(f"[LUMINA] Podcast failed: {e}")
+
+        print(f"[LUMINA] DONE | notes={len(result['simplified_notes'])}c | quiz={len(result['quizzes'])} | cards={len(result['flashcards'])}")
+        return result
 
     @staticmethod
-    async def process_document(text: str, topic: str = "General", source_type: str = "document", source_url: str = "") -> Dict[str, Any]:
-        _log(f"Processing document for topic: {topic}")
+    def generate_more_quiz(source_text: str, existing_questions: List[Dict]) -> List[Dict]:
+        compressed = _compress_source(source_text)
+        existing_str = ""
+        if existing_questions:
+            existing_str = "\n".join([f"- {q.get('question')}" for q in existing_questions if q.get('question')])
         
-        # Prompt 1: Focus ONLY on notes, takeaways, conclusion, and visuals
-        prompt1 = f"""
-        You are a world-class academic educator. Analyze the provided text and generate a COMPREHENSIVE study suite.
-        
-        TOPIC: {topic}
-        SOURCE CONTENT: {text[:MAX_CONTEXT_CHARS]}
-        
-        STRICT OUTPUT FORMAT (Use these EXACT headers):
-        
-        1. # [Dynamic Title]
-        
-        2. ## Detailed Study Notes
-        (The core content. Use deep hierarchical structure, tables for comparisons, and LaTeX for any formulas.)
-        
-        DIAGRAM RULE — MANDATORY:
-        For every major topic section in the notes, you MUST embed 
-        at least ONE Mermaid diagram directly inside the notes text.
-        Use this exact format with triple backticks:
+        prompt = f"""Generate 10 NEW multiple-choice quiz questions from this source.
+Do NOT repeat or duplicate any of the following existing questions:
+{existing_str}
 
-        ```mermaid
-        flowchart LR
-            A["Concept"] --> B["Related Concept"]
-            B --> C["Effect or Result"]
-            style A fill:#E60023,color:#fff,stroke:none
-            style B fill:#1a1a2e,color:#fff,stroke:#E60023
-            style C fill:#5E7B5A,color:#fff,stroke:none
-        ```
+SOURCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{compressed}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        MERMAID SYNTAX RULES (CRITICAL):
-        - Always use double quotes for labels: NodeID["Label Text"].
-        - Node IDs must be simple alphanumeric strings (e.g., A, B, Node1).
-        - NEVER use @, (, ), {{, }}, [, ], or spaces in a Node ID.
-        - For labels with special characters (like {{{{ or @), always wrap them in double quotes: A["{{{{Interpolation}}}}"].
-        - For connectors with labels, use: A -->|"label"| B or A -- "label" --> B. NEVER use --["label"] -->.
-        - Use flowchart LR for processes and sequences.
-        - Use flowchart TD for hierarchies.
-        - Use mindmap for concept relationships.
+RULES:
+- Each question tests a SPECIFIC fact from the source.
+- One correct answer, three plausible wrong answers.
+- Output EXACTLY 10 lines, nothing else.
+- Format: Question | OptionA | OptionB | OptionC | OptionD | CorrectLetter
+"""
+        print("[LUMINA] Generating MORE QUIZ...")
+        raw = _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=3000)
+        return _parse_quiz(raw)
 
-        Place the diagram AFTER the paragraph that explains that concept.
-        Every diagram must have colored nodes using the style lines above.
-        Generate at least 3 diagrams total inside the notes section.
-
-        IMAGE RULE — MANDATORY:
-        Embed exactly 5 images inside the notes. 
-        Place each image after the section it illustrates.
-        Use ONLY this exact URL format — no variations allowed:
-
-        ![Brief description](https://image.pollinations.ai/prompt/detailed+prompt+words+here?width=1200&height=630&nologo=true&seed=4271)
-
-        RULES:
-        - Use plus signs (+) between words in the prompt, NOT spaces or %20
-        - Change the seed number to a different random 4-digit number for each image
-        - The prompt after /prompt/ must describe the concept in 8-12 words
-        - Do NOT use /p/ — only use /prompt/
-        - Do NOT add any other query parameters
-        - Each image must be on its own line with a blank line before and after
-
-        Example of correct format:
-        ![Photosynthesis process](https://image.pollinations.ai/prompt/green+leaf+absorbing+sunlight+converting+to+glucose+diagram?width=1200&height=630&nologo=true&seed=3847)
-        
-        3. ## Key Takeaways
-        (A bulleted list of the most important 5-7 points to remember)
-        
-        4. ## Conclusion
-        (A formal academic summary that ties everything together and provides a final perspective. Minimum 200 words.)
-        
-        5. ## Audio Lab Script
-        (Generate a 2-minute dialogue between 'Host:' and 'Expert:'. 
-        Host: Welcome back! Today we're diving into...
-        Expert: Exactly, and the most fascinating part is...
-        Make it engaging and conversational. DO NOT use markdown like ** within the lines.)
-        
-        6. ## Visual Style Prompt
-        (A one-sentence summary of the overall aesthetic for this topic)
-        
-        RULES:
-        - NEVER include quizzes or flashcards here.
-        - Ensure all image placeholders match the format [IMAGE: description].
-        """
-        
-        # Prompt 2: Focus ONLY on interactive materials
-        prompt2 = f"""
-        Generate interactive study materials for '{topic}'.
-        SOURCE: {text[:MAX_CONTEXT_CHARS]}
-        
-        STRICT FORMAT:
-        1. ## Knowledge Quiz
-        (15 questions. Use format: Question|OptionA|OptionB|OptionC|OptionD|CorrectAnswer)
-        
-        2. ## Recall Flashcards
-        (20 cards. Use format: Question|Answer)
-        
-        3. ## Study Roadmap
-        (A Mermaid.js graph TD diagram. 
-        - Use quotes for ALL labels: A["Step 1"].
-        - Use simple alphanumeric IDs for nodes: Node1, Node2, etc.
-        - NEVER use special characters in Node IDs.
-        - For connectors with labels, use: Node1 -->|"Label"| Node2.)
-        
-        4. ## Concept Mind Map
-        (A Mermaid.js mindmap. 
-        - Use quotes for ALL labels.
-        - Ensure proper indentation for levels.)
-        """
-        
-        async def _generate_all():
-            # Parallel call like hf_deploy
-            loop = asyncio.get_event_loop()
-            res1_task = loop.run_in_executor(None, _call_openrouter, [{"role": "user", "content": prompt1}], DEFAULT_MODEL, MAX_TOKENS_NOTES, API_TIMEOUT_NOTES)
-            res2_task = loop.run_in_executor(None, _call_openrouter, [{"role": "user", "content": prompt2}], DEFAULT_MODEL, MAX_TOKENS_MATERIALS, API_TIMEOUT_MATERIALS)
+    @staticmethod
+    def generate_more_flashcards(source_text: str, existing_cards: List[Dict]) -> List[Dict]:
+        compressed = _compress_source(source_text)
+        existing_str = ""
+        if existing_cards:
+            existing_str = "\n".join([f"- {c.get('front')}" for c in existing_cards if c.get('front')])
             
-            res1, res2 = await asyncio.gather(res1_task, res2_task)
-            
-            data1 = _parse_robust_markdown(res1)
-            data2 = _parse_robust_markdown(res2)
+        prompt = f"""Generate 15 NEW flashcards from this source.
+Do NOT repeat or duplicate any of the following existing terms/phrases:
+{existing_str}
 
-            combined = {
-                "title": data1.get("title", topic),
-                "simplified_notes": res1,
-                "source_text": text,
-                "quizzes": [],
-                "flashcards": [],
-                "roadmap": data2.get("study roadmap", ""),
-                "mind_map": data2.get("concept mind map", ""),
-                "podcast_script": data1.get("audio lab script", ""),
-                "visual_prompt": data1.get("visual style prompt", "")
-            }
+SOURCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{compressed}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            # Apply clean formatting (handles image URL fixes and fallbacks)
-            combined = AIService._clean_note_formatting(combined)
-
-            # Parse Quiz
-            for line in data2.get("knowledge quiz", "").strip().split('\n'):
-                p = [x.strip() for x in line.split('|')]
-                if len(p) >= 6:
-                    combined["quizzes"].append({"question": p[0], "options": p[1:5], "answer": p[5]})
-
-            # Parse Flashcards
-            for line in data2.get("recall flashcards", "").strip().split('\n'):
-                p = [x.strip() for x in line.split('|')]
-                if len(p) >= 2:
-                    combined["flashcards"].append({"front": p[0], "back": p[1]})
-
-            return combined
-
-        return await _generate_all()
+RULES:
+- Front = exact term or short phrase from source.
+- Back = simple one-sentence explanation (max 20 words).
+- Output EXACTLY 15 lines, nothing else.
+- Format: Term | Definition
+"""
+        print("[LUMINA] Generating MORE FLASHCARDS...")
+        raw = _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=2500)
+        return _parse_flashcards(raw)
 
     @staticmethod
     async def generate_response(prompt: str, context: str, history: List[Dict[str, str]] = None) -> str:
-        _log(f"Generating chat response for: {prompt[:50]}...")
-        system_prompt = (
-            "You are Lumina, an elite academic study assistant. "
-            "Your goal is to help the student understand the material deeply. "
-            f"PRIMARY CONTEXT: {context[:MAX_CONTEXT_CHARS]}\n\n"
-            "INSTRUCTIONS:\n"
-            "- Use the provided context as your main source of truth.\n"
-            "- If a question is outside the context, answer it using your general knowledge but add a disclaimer that this wasn't in the original study material.\n"
-            "- Be encouraging, clear, and use professional academic language.\n"
-            "- Use Markdown for formatting (bolding, lists, etc.) to make answers readable."
-        )
-        messages = [{"role": "system", "content": system_prompt}]
-        if history: 
-            # Ensure history matches expected format
-            clean_history = []
-            for m in history[-6:]:
-                if isinstance(m, dict) and "role" in m and "content" in m:
-                    clean_history.append({"role": m["role"], "content": str(m["content"])})
-            messages.extend(clean_history)
-            
+        messages = [{
+            "role": "system",
+            "content": (
+                "You are Atelier, a world-class academic mentor. "
+                "Help the student master the CONTEXT MATERIAL below.\n"
+                "Use rich markdown. Be encouraging and precise.\n\n"
+                f"CONTEXT:\n{context[:12000]}"
+            )
+        }]
+        if history:
+            for msg in history[-6:]:
+                if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                    messages.append({"role": msg["role"], "content": str(msg["content"])})
         messages.append({"role": "user", "content": prompt})
-        _log(f"Chat Messages: {json.dumps(messages, indent=2)}")
-        
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _call_openrouter, messages, DEFAULT_MODEL, 2000, 120)
+
+        # Use chat cascade — free models first, paid as last resort
+        return _call_cascade(messages, CHAT_MODELS, max_tokens=1500)
 
     @staticmethod
-    def generate_more_quiz(source_text: str, existing_questions: list) -> list:
-        prompt = (
-            f"SOURCE: {source_text[:8000]}\n"
-            f"TASK: Generate 10 NEW and different quiz questions based on the source. Use format: Question|OptionA|OptionB|OptionC|OptionD|CorrectAnswer"
-        )
-        res = _call_openrouter([{"role": "user", "content": prompt}], DEFAULT_MODEL, 2000)
-        new_q = []
-        for line in res.strip().split('\n'):
-            p = [x.strip() for x in line.split('|')]
-            if len(p) >= 6:
-                new_q.append({"question": p[0], "options": p[1:5], "answer": p[5]})
-        return new_q
+    def generate_response_stream(prompt: str, context: str, history: List[Dict[str, str]] = None):
+        messages = [{
+            "role": "system",
+            "content": (
+                "You are Lumina, a world-class academic mentor. "
+                "Help the student master the CONTEXT MATERIAL below.\n"
+                "Use rich markdown. Be encouraging and precise.\n\n"
+                f"CONTEXT:\n{context[:12000]}"
+            )
+        }]
+        if history:
+            for msg in history[-6:]:
+                if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                    messages.append({"role": msg["role"], "content": str(msg["content"])})
+        messages.append({"role": "user", "content": prompt})
 
-    @staticmethod
-    def generate_more_flashcards(source_text: str, existing_cards: list) -> list:
-        prompt = (
-            f"SOURCE: {source_text[:8000]}\n"
-            f"TASK: Generate 10 NEW and different flashcards based on the source. Use format: Term|Definition"
-        )
-        res = _call_openrouter([{"role": "user", "content": prompt}], DEFAULT_MODEL, 1500)
-        new_c = []
-        for line in res.strip().split('\n'):
-            p = [x.strip() for x in line.split('|')]
-            if len(p) >= 2:
-                new_c.append({"front": p[0], "back": p[1]})
-        return new_c
+        return _stream_cascade(messages, CHAT_MODELS)

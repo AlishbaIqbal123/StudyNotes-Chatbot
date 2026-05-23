@@ -16,31 +16,31 @@ const features = [
     title: 'Archive Retrieval',
     desc: 'Transform PDFs, DOCX, and research papers into structured, beautiful study notes with a single upload.',
     icon: Archive,
-    color: '#E60023',
+    color: '#1E40AF',
   },
   {
     title: 'Visual Synthesis',
     desc: 'Every study session is assigned a unique AI-generated visual anchor to enhance mnemonic recall.',
     icon: Sparkles,
-    color: '#3B9BC8',
+    color: '#3B82F6',
   },
   {
     title: 'Socratic Dialogue',
     desc: 'Engage with an AI tutor that doesn\'t just give answers, but guides you through conceptual hurdles.',
     icon: Bot,
-    color: '#5E7B5A',
+    color: '#F59E0B',
   },
   {
     title: 'Acoustic Labs',
     desc: 'Narrated podcast-style summaries you can listen to on the go. Your content, your pace.',
     icon: Headphones,
-    color: '#7C6FCD',
+    color: '#D97706',
   },
   {
     title: 'Synthesis Engine',
     desc: 'Adaptive, Socratic quizzes generated from your material. Test comprehension, not memorization.',
     icon: BrainCircuit,
-    color: '#C8552A',
+    color: '#FBBF24',
   },
 ];
 
@@ -68,64 +68,53 @@ export default function LandingPage() {
       
       {/* ── AMBIENT ARTISTRY ── */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-         <div className="absolute top-[10%] left-[5%] w-[40vw] h-[40vw] bg-primary/5 rounded-full blur-[120px] animate-pulse" />
-         <div className="absolute bottom-[10%] right-[5%] w-[35vw] h-[35vw] bg-primary/5 rounded-full blur-[100px]" style={{ animationDelay: '2s' }} />
+         <div className="ambient-glow-1" />
+         <div className="ambient-glow-2" />
       </div>
 
       {/* ── NAVIGATION ── */}
-      <nav className={`fixed top-0 w-full z-50 transition-all duration-500 ${scrolled ? 'bg-background/80 backdrop-blur-xl py-4 border-b border-border' : 'py-8'}`}>
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-12 flex items-center justify-between">
+      <div className="fixed top-6 left-0 right-0 px-4 z-50 flex justify-center">
+        <nav className="glass border border-border/40 px-6 py-3 rounded-full flex items-center justify-between w-full max-w-5xl shadow-lg shadow-primary/5 transition-all duration-500">
            <Link href="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center rotate-3 group-hover:rotate-0 transition-transform shadow-lg shadow-primary/20">
-                 <Sparkles className="text-white w-5 h-5" />
+              <div className="w-8.5 h-8.5 rounded-xl bg-primary flex items-center justify-center rotate-3 group-hover:rotate-0 transition-transform shadow-md shadow-primary/20 shrink-0">
+                 <Sparkles className="text-white w-4.5 h-4.5" />
               </div>
               <div className="flex flex-col">
-                 <span className="font-black text-xl tracking-tighter leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Lumina</span>
-                 <span className="text-primary text-[10px] font-black uppercase tracking-[0.3em] leading-none mt-0.5">Atelier</span>
+                 <span className="font-black text-sm tracking-tight leading-none text-foreground" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Lumina</span>
+                 <span className="text-primary text-[8px] font-black uppercase tracking-[0.2em] leading-none mt-0.5">Atelier</span>
               </div>
            </Link>
 
-           <div className="hidden lg:flex items-center gap-10">
+           <div className="hidden lg:flex items-center gap-8">
               {['Gallery', 'Methodology', 'Pricing'].map(item => (
-                <a key={item} href={`#${item.toLowerCase()}`} className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:text-primary transition-colors" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                <a key={item} href={`#${item.toLowerCase()}`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                   {item}
                 </a>
               ))}
            </div>
 
-           <div className="flex items-center gap-4 lg:gap-8">
+           <div className="flex items-center gap-4">
               <ThemeToggle />
-              <Link href="/login" className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground hover:opacity-60 transition-opacity hidden sm:block" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <Link href="/login" className="text-[10px] font-black uppercase tracking-widest text-foreground hover:opacity-60 transition-opacity hidden sm:block" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 Login
               </Link>
-              <Link href="/signup" className="px-8 py-3 rounded-full bg-primary text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <Link href="/signup" className="px-6 py-2.5 rounded-full bg-primary text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-primary/25 hover:scale-105 active:scale-95 transition-all" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 Enter Atelier
               </Link>
            </div>
-        </div>
-      </nav>
+        </nav>
+      </div>
 
       <main className="relative z-10">
 
         {/* ── EDITORIAL HERO ── */}
-        <section className="pt-48 pb-32 px-6 lg:px-12 max-w-[1400px] mx-auto">
+        <section className="pt-36 pb-32 px-6 lg:px-12 max-w-[1400px] mx-auto">
            <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:items-center">
               
               <motion.div 
                 style={{ opacity: heroOpacity, scale: heroScale }}
                 className="lg:col-span-7"
               >
-                 <motion.div
-                   initial={{ opacity: 0, x: -20 }}
-                   animate={{ opacity: 1, x: 0 }}
-                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-8 border border-primary/20 bg-primary/5"
-                 >
-                    <Sparkles className="w-3.5 h-3.5 text-primary" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                       Synthesizing Intelligence
-                    </span>
-                 </motion.div>
-
                  <h1 className="text-6xl sm:text-8xl md:text-9xl font-bold tracking-tighter leading-[0.85] mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
                     The <span className="italic">Digital</span><br />Atelier<span className="text-primary">.</span>
                  </h1>
@@ -157,25 +146,114 @@ export default function LandingPage() {
               <div className="lg:col-span-5 relative">
                  <div className="masonry-preview">
                     {[
-                      { h: 'h-64', c: 'bg-primary/10', icon: BookOpen, l: 'Neural Arch' },
-                      { h: 'h-48', c: 'bg-foreground text-background', icon: Zap, l: 'Logic Labs', dark: true },
-                      { h: 'h-72', c: 'bg-card border border-border', icon: BrainCircuit, l: 'Socratic Cells' },
-                      { h: 'h-64', c: 'bg-muted', icon: Video, l: 'Motion Archive' },
+                      { 
+                        id: 'm1',
+                        h: 'min-h-[250px]', 
+                        c: 'bg-card border border-border shadow-lg hover:border-primary/30', 
+                        render: () => (
+                          <div className="flex flex-col justify-between h-full text-left">
+                            <div className="flex justify-between items-center">
+                              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <BookOpen className="w-4 h-4 text-primary" />
+                              </div>
+                              <span className="text-[9px] font-bold text-primary uppercase tracking-widest bg-primary/5 px-2.5 py-1 rounded-full">Archive</span>
+                            </div>
+                            <div className="my-4">
+                              <h4 className="text-base font-black tracking-tight text-foreground" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Neural Systems</h4>
+                              <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">8 synthesized pages, 2 conceptual maps, 1 podcast summary.</p>
+                            </div>
+                            <div className="flex gap-1.5 mt-2">
+                              <div className="w-6 h-1 bg-primary/20 rounded-full" />
+                              <div className="w-12 h-1 bg-primary rounded-full" />
+                              <div className="w-8 h-1 bg-primary/40 rounded-full" />
+                            </div>
+                          </div>
+                        )
+                      },
+                      { 
+                        id: 'm2',
+                        h: 'min-h-[210px]', 
+                        c: 'bg-[#0A1128] text-white border border-white/10 hover:border-gold hover:shadow-gold-glow', 
+                        render: () => (
+                          <div className="flex flex-col justify-between h-full text-left relative overflow-hidden">
+                            <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-amber-500/10 rounded-full blur-xl" />
+                            <div className="flex justify-between items-center">
+                              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                                <Zap className="text-amber-400 w-4 h-4 fill-amber-400" />
+                              </div>
+                              <span className="text-[9px] font-black text-gold uppercase tracking-widest bg-amber-500/20 text-gold border border-amber-500/30 px-2.5 py-1 rounded-full">Flashcard</span>
+                            </div>
+                            <div className="my-3">
+                              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">Question 04</p>
+                              <h4 className="text-sm font-semibold tracking-tight text-white mt-0.5 leading-snug" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>What is backpropagation?</h4>
+                            </div>
+                            <div className="text-[9px] text-gold font-bold uppercase tracking-widest flex items-center gap-1">
+                              <span>Reveal Answer</span>
+                              <ChevronRight className="w-3 h-3" />
+                            </div>
+                          </div>
+                        )
+                      },
+                      { 
+                        id: 'm3',
+                        h: 'min-h-[270px]', 
+                        c: 'bg-card border border-border shadow-lg hover:border-primary/30', 
+                        render: () => (
+                          <div className="flex flex-col justify-between h-full text-left">
+                            <div className="flex justify-between items-center">
+                              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <Bot className="w-4 h-4 text-primary" />
+                              </div>
+                              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest border border-border px-2.5 py-1 rounded-full">Tutor</span>
+                            </div>
+                            <div className="my-3 space-y-2 flex-1 flex flex-col justify-center">
+                              <div className="p-2.5 rounded-2xl rounded-tl-none bg-muted text-[10px] text-foreground leading-relaxed">
+                                Why do we use activation functions in networks?
+                              </div>
+                              <div className="p-2.5 rounded-2xl rounded-tr-none bg-primary/5 border border-primary/10 text-[10px] text-primary leading-relaxed self-end">
+                                To introduce non-linearity.
+                              </div>
+                            </div>
+                            <span className="text-[9px] text-muted-foreground font-bold">Active dialogue...</span>
+                          </div>
+                        )
+                      },
+                      { 
+                        id: 'm4',
+                        h: 'min-h-[230px]', 
+                        c: 'bg-card border border-border shadow-lg hover:border-primary/30', 
+                        render: () => (
+                          <div className="flex flex-col justify-between h-full text-left">
+                            <div className="flex justify-between items-center">
+                              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <Headphones className="w-4 h-4 text-primary" />
+                              </div>
+                              <span className="text-[9px] font-bold text-primary uppercase tracking-widest bg-primary/5 px-2.5 py-1 rounded-full">Audio Lab</span>
+                            </div>
+                            <div className="my-3">
+                              <h4 className="text-base font-black tracking-tight text-foreground" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Quantum Synthesis</h4>
+                              <p className="text-[10px] text-muted-foreground mt-1">Lecture 12 summary podcast.</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white shadow-md shadow-primary/20">
+                                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                              </div>
+                              <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                                <div className="w-1/3 h-full bg-primary" />
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      },
                     ].map((m, i) => (
                       <motion.div
-                        key={i}
+                        key={m.id}
                         initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.5 + i * 0.1, duration: 0.8 }}
                         className={`mb-6 rounded-[2.5rem] p-8 flex flex-col justify-between group cursor-default transition-all duration-700 hover:-translate-y-4 hover:shadow-2xl border border-border/50 break-inside-avoid inline-block w-full ${m.h} ${m.c}`}
                       >
-                         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${m.dark ? 'bg-background/10' : 'bg-foreground/5'}`}>
-                            <m.icon className="w-5 h-5" />
-                         </div>
-                         <div className="flex flex-col text-left">
-                            <span className={`text-[10px] font-black uppercase tracking-widest mb-1 opacity-40`}>Exhibit {i+1}</span>
-                            <span className={`text-lg font-bold tracking-tight`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{m.l}</span>
-                         </div>
+                         {m.render()}
                       </motion.div>
                     ))}
                  </div>
@@ -184,7 +262,7 @@ export default function LandingPage() {
         </section>
 
         {/* ── METHODOLOGY SECTION ── */}
-        <section id="methodology" className="py-40 bg-foreground text-background transition-colors duration-500">
+        <section id="methodology" className="py-40 bg-muted/30 text-foreground border-y border-border/50 transition-colors duration-500">
            <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
               <div className="mb-24 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
                  <div className="max-w-xl text-left">
@@ -193,7 +271,7 @@ export default function LandingPage() {
                        The Synthesis <span className="italic text-primary">Process</span>.
                     </h2>
                  </div>
-                 <p className="max-w-md text-background/60 leading-relaxed text-lg text-left">
+                 <p className="max-w-md text-muted-foreground leading-relaxed text-lg text-left">
                     We don't just summarize. We reconstruct your material into a multi-sensory learning experience designed for high-density cognitive retention.
                  </p>
               </div>
@@ -203,13 +281,13 @@ export default function LandingPage() {
                     <motion.div 
                       key={i}
                       whileHover={{ y: -10 }}
-                      className="p-10 rounded-[3rem] bg-background/5 border border-background/10 hover:border-primary/40 transition-all duration-500 text-left"
+                      className="p-10 rounded-[3rem] bg-card border border-border/80 shadow-sm hover:border-primary/40 hover:shadow-lg transition-all duration-500 text-left"
                     >
                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-8" style={{ backgroundColor: `${f.color}20`, color: f.color }}>
                           <f.icon className="w-7 h-7" />
                        </div>
                        <h3 className="text-2xl font-bold mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{f.title}</h3>
-                       <p className="opacity-60 leading-relaxed">{f.desc}</p>
+                       <p className="text-muted-foreground leading-relaxed">{f.desc}</p>
                     </motion.div>
                  ))}
               </div>
@@ -218,7 +296,7 @@ export default function LandingPage() {
 
         {/* ── REIMAGINED CTA ── */}
         <section className="py-40 px-6 lg:px-12 max-w-[1400px] mx-auto">
-           <div className="relative rounded-[4rem] bg-primary p-20 lg:p-32 overflow-hidden shadow-2xl shadow-primary/20">
+           <div className="relative rounded-[4rem] bg-gradient-to-r from-[#0A1128] via-[#1E40AF] to-[#D97706] p-20 lg:p-32 overflow-hidden shadow-2xl shadow-primary/25">
               <div className="absolute top-0 right-0 w-1/2 h-full bg-black/5 -skew-x-12 translate-x-1/4" />
               <div className="relative z-10 text-center text-white">
                  <Sparkles className="w-16 h-16 mx-auto mb-10 opacity-30" />
