@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookOpen, ChevronRight, BrainCircuit, Zap, Layers, Mic,
   Book, Trophy, Image as ImageIcon, X, Menu, GripVertical,
-  Plus, Loader2, Play, Pause, Sparkles, Volume2, VolumeX
+  Plus, Loader2, Play, Pause, Sparkles, Volume2, VolumeX, Bot
 } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
@@ -41,6 +41,24 @@ export default function NoteView({ id }: { id: string }) {
   const [isRateLimitOpen, setIsRateLimitOpen] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+  const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState(false);
+  const [isRightDrawerOpen, setIsRightDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth < 1024;
+      setIsMobileOrTablet(isMobile);
+      if (!isMobile) {
+        setIsLeftDrawerOpen(false);
+        setIsRightDrawerOpen(false);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Generation States
   const [generatingCards, setGeneratingCards] = useState(false);
@@ -397,52 +415,112 @@ export default function NoteView({ id }: { id: string }) {
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans">
       <RateLimitModal isOpen={isRateLimitOpen} onClose={() => setIsRateLimitOpen(false)} upgradeUrl="https://openrouter.ai/credits" />
 
+      {/* Backdrop for mobile drawers */}
+      {isMobileOrTablet && (isLeftDrawerOpen || isRightDrawerOpen) && (
+        <div 
+          onClick={() => { setIsLeftDrawerOpen(false); setIsRightDrawerOpen(false); }}
+          className="fixed inset-0 bg-black/45 backdrop-blur-sm z-40 transition-opacity"
+        />
+      )}
+
       {/* SIDEBAR — left nav with resize handle */}
       <aside
-        style={{ width: isSidebarCollapsed ? '5rem' : `${sidebarWidth}px`, minWidth: isSidebarCollapsed ? '5rem' : '180px', maxWidth: '480px' }}
-        className="bg-card border-r border-border flex flex-col relative shrink-0"
+        style={{ 
+          width: isMobileOrTablet ? '280px' : (isSidebarCollapsed ? '5rem' : `${sidebarWidth}px`), 
+          minWidth: isMobileOrTablet ? '280px' : (isSidebarCollapsed ? '5rem' : '180px'), 
+          maxWidth: isMobileOrTablet ? '280px' : '480px',
+          position: isMobileOrTablet ? 'fixed' : 'relative',
+          left: isMobileOrTablet ? (isLeftDrawerOpen ? '0' : '-280px') : '0',
+          top: 0,
+          bottom: 0,
+          height: '100%',
+          zIndex: isMobileOrTablet ? 50 : 10,
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}
+        className="glass-card border-r border-border flex flex-col shrink-0"
       >
-        <div className="flex items-center justify-between mb-10 px-6 pt-6">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white"><BookOpen className="w-5 h-5" /></div>
-            {!isSidebarCollapsed && <span className="font-black text-lg">Lumina</span>}
+        <div className="flex items-center justify-between mb-8 px-6 pt-6 shrink-0">
+          <Link href="/dashboard" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/10 group-hover:scale-105 transition-transform"><BookOpen className="w-5 h-5" /></div>
+            {(!isSidebarCollapsed || isMobileOrTablet) && <span className="font-extrabold text-lg bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent">Lumina</span>}
           </Link>
-          <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="p-2 hover:bg-muted rounded-lg"><Menu className="w-4 h-4" /></button>
+          {!isMobileOrTablet && (
+            <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="p-2 hover:bg-muted/85 rounded-xl transition-colors text-muted-foreground hover:text-foreground"><Menu className="w-4 h-4" /></button>
+          )}
+          {isMobileOrTablet && (
+            <button onClick={() => setIsLeftDrawerOpen(false)} className="p-2 hover:bg-muted/85 rounded-xl transition-colors text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+          )}
         </div>
 
-        <nav className="space-y-2 flex-1 overflow-y-auto no-scrollbar px-4">
+        <nav className="flex-1 overflow-y-auto no-scrollbar px-4 space-y-6">
           {[
-            { id: 'notes', label: 'Detailed Notes', icon: Book },
-            { id: 'roadmap', label: 'Study Roadmap', icon: ChevronRight },
-            { id: 'mindmap', label: 'Concept Map', icon: BrainCircuit },
-            { id: 'quiz', label: 'Knowledge Quiz', icon: Trophy },
-            { id: 'flashcards', label: 'Flashcards', icon: Layers },
-            { id: 'podcast', label: 'Audio Lab', icon: Mic },
-            { id: 'gallery', label: 'Visual Gallery', icon: ImageIcon },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as TabType)}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl font-bold text-sm ${activeTab === tab.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'hover:bg-muted text-muted-foreground'}`}
-            >
-              <tab.icon className="w-5 h-5 shrink-0" />
-              {!isSidebarCollapsed && <span className="truncate">{tab.label}</span>}
-            </button>
+            {
+              title: 'Study Core',
+              items: [
+                { id: 'notes', label: 'Detailed Notes', icon: Book },
+                { id: 'roadmap', label: 'Study Roadmap', icon: ChevronRight },
+                { id: 'mindmap', label: 'Concept Map', icon: BrainCircuit },
+              ]
+            },
+            {
+              title: 'Practice & Recall',
+              items: [
+                { id: 'quiz', label: 'Knowledge Quiz', icon: Trophy },
+                { id: 'flashcards', label: 'Flashcards', icon: Layers },
+              ]
+            },
+            {
+              title: 'Multimedia Lab',
+              items: [
+                { id: 'podcast', label: 'Audio Lab', icon: Mic },
+                { id: 'gallery', label: 'Visual Gallery', icon: ImageIcon },
+              ]
+            }
+          ].map((group, gIdx) => (
+            <div key={gIdx} className="space-y-1.5">
+              {(!isSidebarCollapsed || isMobileOrTablet) && (
+                <h3 className="px-3 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/50">
+                  {group.title}
+                </h3>
+              )}
+              <div className="space-y-1">
+                {group.items.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id as TabType);
+                      if (isMobileOrTablet) setIsLeftDrawerOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3.5 p-3 rounded-xl font-bold text-sm transition-all duration-200 relative group/btn ${
+                      activeTab === tab.id
+                        ? 'bg-gradient-to-r from-primary/95 to-primary/80 text-white shadow-md shadow-primary/10'
+                        : 'hover:bg-muted/80 text-muted-foreground hover:text-foreground hover:scale-[1.02] active:scale-[0.98]'
+                    }`}
+                  >
+                    {activeTab === tab.id && (
+                      <span className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-gradient-to-b from-accent to-secondary rounded-r-full" />
+                    )}
+                    <tab.icon className={`w-4 h-4 shrink-0 transition-colors ${activeTab === tab.id ? 'text-white' : 'text-muted-foreground/80 group-hover/btn:text-foreground'}`} />
+                    {(!isSidebarCollapsed || isMobileOrTablet) && <span className="truncate">{tab.label}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="mt-6 pt-6 border-t border-border flex flex-col items-center gap-4 px-4 pb-6">
+        <div className="mt-auto pt-4 border-t border-border/50 flex flex-col items-center gap-4 px-4 pb-6 shrink-0 bg-card/45">
           <ThemeToggle />
-          {!isSidebarCollapsed && (
-            <span className="text-[10px] font-black uppercase tracking-widest opacity-30">
+          {(!isSidebarCollapsed || isMobileOrTablet) && (
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-35 text-muted-foreground">
               Lumina Engine v2.0
             </span>
           )}
         </div>
 
         {/* Resize handle — right edge of left sidebar */}
-        {!isSidebarCollapsed && (
+        {!isSidebarCollapsed && !isMobileOrTablet && (
           <div
             onMouseDown={startResizing}
             className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10 group"
@@ -455,6 +533,28 @@ export default function NoteView({ id }: { id: string }) {
 
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col relative min-w-0">
+        {/* Sticky Mobile/Tablet Header */}
+        {isMobileOrTablet && (
+          <header className="sticky top-0 bg-background/80 backdrop-blur-md border-b border-border/50 h-16 flex items-center justify-between px-4 z-30 shrink-0">
+            <button 
+              onClick={() => setIsLeftDrawerOpen(true)}
+              className="p-2 hover:bg-muted rounded-xl transition-colors text-foreground"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-primary to-blue-600 rounded-lg flex items-center justify-center text-white shadow-sm"><BookOpen className="w-4 h-4" /></div>
+              <span className="font-extrabold text-base bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent">Lumina</span>
+            </div>
+            <button 
+              onClick={() => setIsRightDrawerOpen(true)}
+              className="p-2 hover:bg-muted rounded-xl transition-colors text-primary relative"
+            >
+              <Bot className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full border border-background animate-pulse" />
+            </button>
+          </header>
+        )}
         <div className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
           <div className="w-full px-8 py-10" style={{ paddingLeft: 'clamp(1.25rem, 3vw, 2.5rem)', paddingRight: 'clamp(1.25rem, 3vw, 2.5rem)' }}>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-12">
@@ -1151,7 +1251,27 @@ export default function NoteView({ id }: { id: string }) {
         </div>
       </main >
 
-      <ChatSidebar history={history} loading={chatLoading} prompt={chatPrompt} onPromptChange={setChatPrompt} onSendMessage={handleSendMessage} />
+      <ChatSidebar 
+        history={history} 
+        loading={chatLoading} 
+        prompt={chatPrompt} 
+        onPromptChange={setChatPrompt} 
+        onSendMessage={handleSendMessage}
+        isMobileOrTablet={isMobileOrTablet}
+        isOpen={isRightDrawerOpen}
+        onClose={() => setIsRightDrawerOpen(false)}
+      />
+
+      {/* Floating Action Button for Chat on Mobile */}
+      {isMobileOrTablet && !isRightDrawerOpen && (
+        <button
+          onClick={() => setIsRightDrawerOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-primary to-blue-700 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all z-30 border border-primary/20"
+        >
+          <Bot className="w-6 h-6 animate-pulse" />
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-card" />
+        </button>
+      )}
 
       <style jsx global>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }

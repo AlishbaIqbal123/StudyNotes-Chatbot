@@ -218,13 +218,19 @@ export default function UploadPage() {
       }
     } catch (err: any) {
       clearInterval(iv);
+      console.error("[LUMINA] Ingestion failed with error:", err);
+      if (err?.response) {
+        console.error("[LUMINA] Backend Response:", err.response.data);
+      }
       const classified = classifyError(err);
       if (classified.isRateLimit) {
         const count = await getExistingNotesCount();
         setExistingNotesCount(count);
         setShowLimitModal(true);
       } else {
-        setError(classified.message);
+        const rawMessage = err?.response?.data?.detail || err?.message || '';
+        const displayMessage = rawMessage ? `${classified.message} (Detail: ${rawMessage})` : classified.message;
+        setError(displayMessage);
         setIsRetryable(classified.isRetryable);
       }
       setLoading(false);

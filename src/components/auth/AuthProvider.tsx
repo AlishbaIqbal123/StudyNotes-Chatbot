@@ -52,6 +52,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (error) {
           console.error("Error fetching user profile:", error);
+          // Fallback if firestore read fails
+          setUser({
+            id: fbUser.uid,
+            email: fbUser.email || '',
+            name: fbUser.displayName || 'Student',
+          });
         }
       } else {
         setUser(null);

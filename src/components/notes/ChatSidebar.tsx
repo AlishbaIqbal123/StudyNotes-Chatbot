@@ -3,7 +3,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Bot, Send, GripVertical } from 'lucide-react';
+import { Bot, Send, GripVertical, X } from 'lucide-react';
 import { ChatMessage } from '@/types/note.types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -14,6 +14,9 @@ interface ChatSidebarProps {
   prompt: string;
   onPromptChange: (val: string) => void;
   onSendMessage: (override?: string) => void;
+  isMobileOrTablet?: boolean;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -22,6 +25,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   prompt,
   onPromptChange,
   onSendMessage,
+  isMobileOrTablet = false,
+  isOpen = false,
+  onClose,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(384); // 24rem default
@@ -70,40 +76,74 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   return (
     <aside
-      style={{ width: `${width}px`, minWidth: '280px', maxWidth: '600px' }}
-      className="border-l border-border flex flex-col bg-card overflow-hidden shrink-0 relative"
+      style={{ 
+        width: isMobileOrTablet ? '320px' : `${width}px`, 
+        minWidth: isMobileOrTablet ? '320px' : '280px', 
+        maxWidth: isMobileOrTablet ? '320px' : '600px',
+        position: isMobileOrTablet ? 'fixed' : 'relative',
+        right: isMobileOrTablet ? (isOpen ? '0' : '-320px') : '0',
+        top: 0,
+        bottom: 0,
+        height: '100%',
+        zIndex: isMobileOrTablet ? 50 : 10,
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+      }}
+      className="border-l border-border/60 flex flex-col glass-card overflow-hidden shrink-0"
     >
       {/* Resize handle — left edge */}
-      <div
-        onMouseDown={onMouseDown}
-        className="absolute left-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10 group"
-        title="Drag to resize"
-      >
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-border rounded-full group-hover:bg-primary/40 transition-colors" />
-      </div>
+      {!isMobileOrTablet && (
+        <div
+          onMouseDown={onMouseDown}
+          className="absolute left-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors z-10 group"
+          title="Drag to resize"
+        >
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-12 bg-border rounded-full group-hover:bg-primary/40 transition-colors" />
+        </div>
+      )}
 
       {/* Header */}
-      <div className="pl-4 pr-6 py-5 border-b border-border flex items-center gap-3 shrink-0">
-        <Bot className="w-5 h-5 text-primary shrink-0" />
-        <span className="font-black text-xs uppercase tracking-widest text-foreground truncate">
-          Lumina Assistant
-        </span>
+      <div className="pl-5 pr-4 py-4 border-b border-border/50 flex items-center justify-between shrink-0 bg-card/45 backdrop-blur-md">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center border border-primary/20 shrink-0">
+            <Bot className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="font-bold text-xs uppercase tracking-wider text-foreground truncate">
+              Lumina Assistant
+            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">Online</span>
+            </div>
+          </div>
+        </div>
+        {isMobileOrTablet && onClose && (
+          <button 
+            onClick={onClose}
+            className="p-1.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 no-scrollbar">
         {history.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12 opacity-40">
-            <Bot className="w-10 h-10 mb-3" />
-            <p className="text-xs font-bold uppercase tracking-widest">Ask anything about your notes</p>
+          <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center mb-4 shadow-sm">
+              <Bot className="w-7 h-7 text-primary" />
+            </div>
+            <p className="text-xs font-black uppercase tracking-wider text-foreground">Ask Lumina Assistant</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-[200px] leading-relaxed">Ask anything about your notes, request summaries, quizzes, or flashcards.</p>
           </div>
         )}
         {history.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`max-w-[90%] p-3.5 rounded-2xl text-sm break-words overflow-hidden ${m.role === 'user'
-                  ? 'bg-primary text-white rounded-tr-none shadow-lg shadow-primary/10'
-                  : 'bg-muted rounded-tl-none border border-border/50 text-foreground'
+                  ? 'bg-gradient-to-br from-primary to-blue-700 text-white rounded-tr-none shadow-md shadow-primary/10 border border-primary/20'
+                  : 'bg-card border border-border/80 rounded-tl-none text-foreground shadow-sm'
                 }`}
               style={{ wordBreak: 'break-word', overflowWrap: 'break-word', minWidth: 0 }}
             >
@@ -161,7 +201,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           </div>
         ))}
         {loading && (
-          <div className="flex gap-1.5 p-2">
+          <div className="flex gap-1.5 p-2 justify-start">
             {[0, 0.2, 0.4].map(delay => (
               <motion.div
                 key={delay}
@@ -176,14 +216,14 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       </div>
 
       {/* Input area */}
-      <div className="p-4 border-t border-border space-y-3 bg-card/50 backdrop-blur-sm shrink-0">
+      <div className="p-4 border-t border-border/50 space-y-3 bg-card/45 backdrop-blur-md shrink-0">
         {/* Quick pills */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {suggestedPills.map(p => (
             <button
               key={p.label}
               onClick={() => onSendMessage(p.val)}
-              className="shrink-0 px-3 py-1.5 rounded-full border border-border bg-background text-[10px] font-black uppercase tracking-widest hover:border-primary hover:text-primary transition-all whitespace-nowrap"
+              className="shrink-0 px-3.5 py-1.5 rounded-full border border-border/85 bg-card text-[10px] font-bold text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 hover:scale-105 active:scale-95 transition-all whitespace-nowrap shadow-sm"
             >
               {p.label}
             </button>
@@ -197,12 +237,12 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && onSendMessage()}
             placeholder="Ask anything..."
             disabled={loading}
-            className="w-full bg-muted rounded-2xl pl-5 pr-14 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 transition-all border border-transparent focus:border-primary/30"
+            className="w-full bg-muted/60 focus:bg-background rounded-2xl pl-5 pr-14 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 transition-all border border-border/50 focus:border-primary/50 shadow-inner"
           />
           <button
             onClick={() => onSendMessage()}
             disabled={loading || !prompt.trim()}
-            className="absolute right-2 top-1.5 w-9 h-9 bg-primary text-white rounded-xl flex items-center justify-center disabled:opacity-30 shadow-lg shadow-primary/20 active:scale-95 transition-all"
+            className="absolute right-2 top-2 w-9.5 h-9.5 bg-primary hover:opacity-90 text-white rounded-xl flex items-center justify-center disabled:opacity-30 shadow-md shadow-primary/20 active:scale-95 hover:scale-105 transition-all"
           >
             <Send className="w-3.5 h-3.5" />
           </button>
