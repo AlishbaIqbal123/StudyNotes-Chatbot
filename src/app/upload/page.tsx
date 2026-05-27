@@ -78,12 +78,26 @@ const steps = [
   'Finalizing Your Study Board...'
 ];
 
+const detailedSteps = [
+  'Analyzing document structure and text layers...',
+  'Synthesizing core concepts and definitions...',
+  'Drafting comprehensive Socratic study notes...',
+  'Generating interactive practice quizzes...',
+  'Structuring active recall flashcard decks...',
+  'Designing visual roadmap diagrams...',
+  'Creating mind map layouts...',
+  'Drafting audio podcast scripts...',
+  'Refining study board contents...',
+  'Polishing all generated elements...'
+];
+
 export default function UploadPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'upload' | 'youtube' | 'text'>('upload');
   const [loading, setLoading] = useState(false);
   const [stepIdx, setStepIdx] = useState(0);
+  const [dynamicStatusText, setDynamicStatusText] = useState(steps[0]);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isRetryable, setIsRetryable] = useState(false);
@@ -123,14 +137,33 @@ export default function UploadPage() {
   const simulateProgress = () => {
     let p = 0;
     let s = 0;
+    let detailedIdx = 0;
+    
+    setDynamicStatusText(steps[0]);
+
     const iv = setInterval(() => {
-      p += Math.random() * 8;
-      if (p > 92) p = 92;
-      setProgress(Math.min(p, 92));
-      if (s < steps.length - 1 && p > (s + 1) * 18) {
-        s++;
-        setStepIdx(s);
+      if (p < 90) {
+        p += Math.random() * 8 + 2;
+        if (p >= 90) p = 90;
+        
+        if (s < steps.length - 1 && p > (s + 1) * 18) {
+          s++;
+          setStepIdx(s);
+          setDynamicStatusText(steps[s]);
+        }
+      } else {
+        // Slow crawl above 90%
+        p += Math.random() * 0.3 + 0.1;
+        if (p > 99) p = 99;
+        
+        // Cycle detailed steps every 4 ticks (~5 seconds)
+        const tick = Math.round((p - 90) * 10);
+        if (tick % 4 === 0) {
+          setDynamicStatusText(detailedSteps[detailedIdx % detailedSteps.length]);
+          detailedIdx++;
+        }
       }
+      setProgress(p);
     }, 1200);
     return iv;
   };
@@ -183,6 +216,7 @@ export default function UploadPage() {
       clearInterval(iv);
       setProgress(100);
       setStepIdx(steps.length - 1);
+      setDynamicStatusText('Completed! Redirecting to study board...');
 
       // Normalise response — axios wraps in {data}, fetch returns raw JSON
       const responseData = response?.data ?? response;
@@ -236,6 +270,7 @@ export default function UploadPage() {
       setLoading(false);
       setProgress(0);
       setStepIdx(0);
+      setDynamicStatusText(steps[0]);
     }
   };
 
@@ -287,7 +322,7 @@ export default function UploadPage() {
                   </p>
                   
                   <h3 className="text-2xl font-black mb-6 tracking-tight text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-                    {steps[stepIdx]}
+                    {dynamicStatusText}
                   </h3>
                   
                   {/* Progress Bar Container */}
