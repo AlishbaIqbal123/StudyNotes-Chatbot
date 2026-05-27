@@ -772,29 +772,29 @@ export default function NoteView({ id }: { id: string }) {
                             const lang = (className || '').replace('language-', '').trim()
                             return (
                               <div style={{
-                                margin: '1.25rem 0 1.5rem',
-                                borderRadius: '0.75rem',
+                                margin: '0.65rem 0 0.85rem',
+                                borderRadius: '0.6rem',
                                 overflow: 'hidden',
                                 border: '1px solid rgba(255,255,255,0.08)',
-                                boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+                                boxShadow: '0 3px 12px rgba(0,0,0,0.12)',
                               }}>
                                 {/* Code block header bar */}
                                 <div style={{
                                   background: '#161b22',
-                                  padding: '0.5rem 1rem',
+                                  padding: '0.3rem 0.75rem',
                                   display: 'flex',
                                   alignItems: 'center',
-                                  gap: '0.5rem',
+                                  gap: '0.4rem',
                                   borderBottom: '1px solid rgba(255,255,255,0.06)',
                                 }}>
                                   {/* Traffic-light dots */}
-                                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
-                                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
-                                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
+                                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
+                                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
+                                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
                                   {lang && (
                                     <span style={{
                                       marginLeft: 'auto',
-                                      fontSize: '0.65rem',
+                                      fontSize: '0.6rem',
                                       fontWeight: 700,
                                       textTransform: 'uppercase',
                                       letterSpacing: '0.1em',
@@ -806,14 +806,16 @@ export default function NoteView({ id }: { id: string }) {
                                 {/* Code body */}
                                 <div style={{
                                   background: '#0d1117',
-                                  padding: '1.1rem 1.4rem',
+                                  padding: '0.55rem 0.8rem',
                                   overflowX: 'auto',
+                                  maxHeight: '380px',
+                                  overflowY: 'auto',
                                 }}>
                                   <code style={{
                                     color: '#e6edf3',
                                     fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace",
-                                    fontSize: '0.82rem',
-                                    lineHeight: 1.75,
+                                    fontSize: '0.78rem',
+                                    lineHeight: 1.5,
                                     display: 'block',
                                     whiteSpace: 'pre',
                                   }} {...props}>{children}</code>

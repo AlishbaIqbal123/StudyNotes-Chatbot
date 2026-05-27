@@ -5,6 +5,7 @@ import re
 import json
 import requests
 from typing import Dict, List, Any
+from concurrent.futures import ThreadPoolExecutor
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MAX_RAW_CHARS = 30000
@@ -214,13 +215,17 @@ def _compress_source(text: str) -> str:
         return text
     print(f"[LUMINA] Compressing {len(text)} chars...")
     chunks = [text[i:i+12000] for i in range(0, len(text), 12000)]
-    summaries = []
-    for i, chunk in enumerate(chunks[:4]):
+    
+    def compress_chunk(chunk):
         msg = [
             {"role": "system", "content": "Extract ALL key facts, definitions, statistics, names, dates, examples, and technical terms. Preserve headings. Output as structured bullet points."},
             {"role": "user", "content": chunk}
         ]
-        summaries.append(_call_cascade(msg, DOC_MODELS, max_tokens=4000))
+        return _call_cascade(msg, DOC_MODELS, max_tokens=4000)
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        summaries = list(executor.map(compress_chunk, chunks[:4]))
+        
     return "\n\n---SECTION BREAK---\n\n".join(summaries)
 
 
@@ -238,7 +243,7 @@ def _generate_notes(compressed: str, image_md: str, images: list) -> str:
     else:
         image_refs = "No images available — skip image embedding."
 
-    prompt = """You are a world-class academic educator. Write a COMPLETE, DETAILED, BEAUTIFULLY FORMATTED study guide.
+    prompt = """You are a patient, encouraging, and clear academic educator. Write a COMPLETE, DETAILED, BEAUTIFULLY FORMATTED study guide that is highly informative and easy for a beginner student to understand.
  
 SOURCE DOCUMENT (your ONLY source of truth — never invent facts):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -254,16 +259,19 @@ CRITICAL RULES — FOLLOW EXACTLY:
 1. OUTPUT ONLY STUDY NOTES. ABSOLUTELY NO quiz questions, NO flashcards, NO podcast scripts.
 2. Cover EVERY concept, example, and case study from the source. Be EXTREMELY thorough and comprehensive: write dense, detailed paragraphs explaining concepts fully. Do not write brief high-level summaries.
 3. Use RICH markdown: ## headings, ### sub-headings, **bold** key terms, > blockquotes, tables, bullet lists.
-4. Embed at least 4 Mermaid diagrams directly inside the notes at relevant sections.
-5. Embed at least 3 of the provided IMAGE URLs inline using the exact markdown lines given above.
+4. Recreate any graphs, charts, timelines, data distributions, or structural figures described in the source document as beautiful, interactive Mermaid.js diagrams (such as flowchart, gantt, pie, or mindmap) at their exact corresponding sections inside the notes.
+5. Embed at least 3 of the provided IMAGE URLs inline using the exact markdown lines given above to illustrate concepts visually.
 6. NEVER use filler phrases: "in conclusion", "it is important to note", "as mentioned above", "herein".
-7. MAKE EXPLANATIONS EASY TO UNDERSTAND: Define every technical term step-by-step with a plain-English analogy and real-world example on first use. Explain the 'why' and 'how' behind concepts simply.
+7. CLEAR MEANING & EASY VOCABULARY: Define every technical term step-by-step with a plain-English analogy and a clear real-world example on first use. Explain the 'why' and 'how' behind concepts using very simple wording and easy vocabulary, keeping the educative point of view front and center.
 8. Mermaid diagrams MUST use this safe syntax:
    - Node IDs: simple alphanumeric only (A, B, Node1)
    - Labels: always in double quotes: A["Label Text"]
    - Connectors: A --> B or A -->|"label"| B  (NEVER use --["label"]-->)
    - No special characters (parentheses, braces, brackets) inside node labels, even if double-quoted. (e.g. use A["Step One"] instead of A["Step (1)"])
    - Use style commands at the end of the diagram to style node classes in Royal Blue and Gold theme colors.
+9. If the source material references specific figures, visual charts, or data plots, you MUST summarize the visual data in a comparison table and create a matching Mermaid diagram next to it.
+10. COMPACT CODE SNIPPETS: If code block examples are necessary, make them extremely brief, highly focused on the core concept, and clean (maximum 10-15 lines). Never output long, verbose, or boilerplate-heavy code blocks. Keep code blocks neat, readable, and compact.
+
  
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXACT OUTPUT FORMAT:
@@ -569,82 +577,107 @@ class AIService:
             "visual_prompt": ""
         }
 
-        # ── STAGE 1: Pure Notes ──────────────────────────
-        if generation_type in ("all", "notes"):
-            try:
-                notes_raw = _generate_notes(compressed, image_md, images)
-                notes_data = _parse_notes(notes_raw)
-                result["title"] = notes_data["title"]
-                notes_text = notes_data["simplified_notes"]
+        # Define functions for each stage
+        def run_notes():
+            return _generate_notes(compressed, image_md, images)
 
-                # Inject images if AI didn't embed enough
-                if images and notes_text.count("![") < 3:
-                    inserts = [
-                        f'\n\n![{img["alt"]}]({img["url"]})\n*{img["caption"]}*\n\n'
-                        for img in images[:4] if img.get("url")
-                    ]
-                    parts = notes_text.split('\n\n')
-                    out = []
-                    img_i = 0
-                    chars = 0
-                    for part in parts:
-                        out.append(part)
-                        chars += len(part)
-                        if img_i < len(inserts) and chars > 800 * (img_i + 1):
-                            out.append(inserts[img_i])
-                            img_i += 1
-                    notes_text = '\n\n'.join(out)
+        def run_quiz():
+            return _generate_quiz(compressed)
 
-                result["simplified_notes"] = notes_text
-            except AIServiceError as e:
-                if "RATE_LIMIT_EXCEEDED" in str(e):
-                    raise
-                print(f"[LUMINA] Notes failed: {e}")
-                result["simplified_notes"] = f"# {topic}\n\n> Notes generation failed. Please try again.\n\n{text[:2000]}"
+        def run_flashcards():
+            return _generate_flashcards(compressed)
 
-        # ── STAGE 2: Quiz ────────────────────────────────
-        if generation_type in ("all", "quiz"):
-            try:
-                quiz_raw = _generate_quiz(compressed)
-                result["quizzes"] = _parse_quiz(quiz_raw)
-                print(f"[LUMINA] Quiz parsed: {len(result['quizzes'])} questions")
-            except AIServiceError as e:
-                if "RATE_LIMIT_EXCEEDED" in str(e):
-                    raise
-                print(f"[LUMINA] Quiz failed: {e}")
+        def run_diagrams():
+            return _generate_diagrams(compressed)
 
-        # ── STAGE 3: Flashcards ──────────────────────────
-        if generation_type in ("all", "flashcards"):
-            try:
-                fc_raw = _generate_flashcards(compressed)
-                result["flashcards"] = _parse_flashcards(fc_raw)
-                print(f"[LUMINA] Flashcards parsed: {len(result['flashcards'])} cards")
-            except AIServiceError as e:
-                if "RATE_LIMIT_EXCEEDED" in str(e):
-                    raise
-                print(f"[LUMINA] Flashcards failed: {e}")
+        def run_podcast():
+            return _generate_podcast(compressed)
 
-        # ── STAGE 4: Diagrams ────────────────────────────
-        if generation_type == "all":
-            try:
-                diag_raw = _generate_diagrams(compressed)
-                diag_data = _parse_diagrams(diag_raw)
-                result["roadmap"] = diag_data["roadmap"]
-                result["mind_map"] = diag_data["mind_map"]
-            except AIServiceError as e:
-                if "RATE_LIMIT_EXCEEDED" in str(e):
-                    raise
-                print(f"[LUMINA] Diagrams failed: {e}")
+        futures = {}
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            if generation_type in ("all", "notes"):
+                futures["notes"] = executor.submit(run_notes)
+            if generation_type in ("all", "quiz"):
+                futures["quiz"] = executor.submit(run_quiz)
+            if generation_type in ("all", "flashcards"):
+                futures["flashcards"] = executor.submit(run_flashcards)
+            if generation_type == "all":
+                futures["diagrams"] = executor.submit(run_diagrams)
+            if generation_type in ("all", "podcast"):
+                futures["podcast"] = executor.submit(run_podcast)
 
-        # ── STAGE 5: Podcast ─────────────────────────────
-        if generation_type in ("all", "podcast"):
-            try:
-                pod_raw = _generate_podcast(compressed)
-                result["podcast_script"] = _parse_podcast(pod_raw)
-            except AIServiceError as e:
-                if "RATE_LIMIT_EXCEEDED" in str(e):
-                    raise
-                print(f"[LUMINA] Podcast failed: {e}")
+            # Wait and parse results
+            if "notes" in futures:
+                try:
+                    notes_raw = futures["notes"].result()
+                    notes_data = _parse_notes(notes_raw)
+                    result["title"] = notes_data["title"]
+                    notes_text = notes_data["simplified_notes"]
+
+                    # Inject images if AI didn't embed enough
+                    if images and notes_text.count("![") < 3:
+                        inserts = [
+                            f'\n\n![{img["alt"]}]({img["url"]})\n*{img["caption"]}*\n\n'
+                            for img in images[:4] if img.get("url")
+                        ]
+                        parts = notes_text.split('\n\n')
+                        out = []
+                        img_i = 0
+                        chars = 0
+                        for part in parts:
+                            out.append(part)
+                            chars += len(part)
+                            if img_i < len(inserts) and chars > 800 * (img_i + 1):
+                                out.append(inserts[img_i])
+                                img_i += 1
+                        notes_text = '\n\n'.join(out)
+
+                    result["simplified_notes"] = notes_text
+                except Exception as e:
+                    if "RATE_LIMIT_EXCEEDED" in str(e):
+                        raise
+                    print(f"[LUMINA] Notes failed: {e}")
+                    result["simplified_notes"] = f"# {topic}\n\n> Notes generation failed. Please try again.\n\n{text[:2000]}"
+
+            if "quiz" in futures:
+                try:
+                    quiz_raw = futures["quiz"].result()
+                    result["quizzes"] = _parse_quiz(quiz_raw)
+                    print(f"[LUMINA] Quiz parsed: {len(result['quizzes'])} questions")
+                except Exception as e:
+                    if "RATE_LIMIT_EXCEEDED" in str(e):
+                        raise
+                    print(f"[LUMINA] Quiz failed: {e}")
+
+            if "flashcards" in futures:
+                try:
+                    fc_raw = futures["flashcards"].result()
+                    result["flashcards"] = _parse_flashcards(fc_raw)
+                    print(f"[LUMINA] Flashcards parsed: {len(result['flashcards'])} cards")
+                except Exception as e:
+                    if "RATE_LIMIT_EXCEEDED" in str(e):
+                        raise
+                    print(f"[LUMINA] Flashcards failed: {e}")
+
+            if "diagrams" in futures:
+                try:
+                    diag_raw = futures["diagrams"].result()
+                    diag_data = _parse_diagrams(diag_raw)
+                    result["roadmap"] = diag_data["roadmap"]
+                    result["mind_map"] = diag_data["mind_map"]
+                except Exception as e:
+                    if "RATE_LIMIT_EXCEEDED" in str(e):
+                        raise
+                    print(f"[LUMINA] Diagrams failed: {e}")
+
+            if "podcast" in futures:
+                try:
+                    pod_raw = futures["podcast"].result()
+                    result["podcast_script"] = _parse_podcast(pod_raw)
+                except Exception as e:
+                    if "RATE_LIMIT_EXCEEDED" in str(e):
+                        raise
+                    print(f"[LUMINA] Podcast failed: {e}")
 
         print(f"[LUMINA] DONE | notes={len(result['simplified_notes'])}c | quiz={len(result['quizzes'])} | cards={len(result['flashcards'])}")
         return result
@@ -739,3 +772,4 @@ RULES:
         messages.append({"role": "user", "content": prompt})
 
         return _stream_cascade(messages, CHAT_MODELS)
+        
