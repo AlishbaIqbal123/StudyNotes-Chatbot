@@ -92,8 +92,9 @@ async def process_content(
                 detail="Could not extract enough text from the source. Please try different content."
             )
 
-        # AI Processing
-        processed = await AIService.process_document(
+        # AI Processing - run blocking CPU/IO-bound sync task in a thread pool to avoid blocking the main event loop
+        processed = await asyncio.to_thread(
+            AIService.process_document,
             raw_text,
             topic=topic,
             source_type=type,
@@ -129,7 +130,9 @@ async def generate_more_quiz(
     """Generates additional quiz questions without duplicates."""
     try:
         existing_list = json.loads(existing_questions)
-        questions = AIService.generate_more_quiz(source_text, existing_list)
+        questions = await asyncio.to_thread(
+            AIService.generate_more_quiz, source_text, existing_list
+        )
         return {"questions": questions}
     except Exception as e:
         print(f"[/generate-more-quiz] Error: {e}")
@@ -144,7 +147,9 @@ async def generate_more_flashcards(
     """Generates additional flashcards without duplicates."""
     try:
         existing_list = json.loads(existing_cards)
-        cards = AIService.generate_more_flashcards(source_text, existing_list)
+        cards = await asyncio.to_thread(
+            AIService.generate_more_flashcards, source_text, existing_list
+        )
         return {"flashcards": cards}
     except Exception as e:
         print(f"[/generate-more-flashcards] Error: {e}")

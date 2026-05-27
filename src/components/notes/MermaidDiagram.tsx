@@ -65,7 +65,6 @@ function sanitizeMermaid(code: string): string {
     }
   }
 
-  console.log('[MermaidDiagram] sanitized chart:\n', s);
   return s;
 }
 
@@ -105,7 +104,6 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, onNodeClick }) =
       if (typeof window === 'undefined') return;
       const id = `mermaid-${Math.random().toString(36).slice(2, 11)}`;
       try {
-        console.log('[MermaidDiagram] raw chart:\n', chart);
         const cleanChart = sanitizeMermaid(chart);
         if (!cleanChart) {
           if (isMounted) setError(true);
