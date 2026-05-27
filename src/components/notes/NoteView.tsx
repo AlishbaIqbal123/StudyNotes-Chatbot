@@ -567,7 +567,7 @@ export default function NoteView({ id }: { id: string }) {
             <AnimatePresence mode="wait">
               <motion.article key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="pb-32">
                 {activeTab === 'notes' && (
-                  <div className="lumina-prose">
+                  <div className={`lumina-prose ${isSidebarCollapsed ? 'full-width' : ''}`}>
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkMath]}
                       rehypePlugins={[rehypeKatex]}
@@ -1281,7 +1281,8 @@ export default function NoteView({ id }: { id: string }) {
         ::selection { background: var(--primary); color: #fff; }
         ::-moz-selection { background: var(--primary); color: #fff; }
 
-        .lumina-prose { max-width: 72ch; }
+        .lumina-prose { max-width: 72ch; transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
+        .lumina-prose.full-width { max-width: 100%; }
 
         /* Nested list indent levels */
         .lumina-prose ul ul li span:first-child { 
