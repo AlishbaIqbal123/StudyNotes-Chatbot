@@ -439,7 +439,7 @@ export default function NoteView({ id }: { id: string }) {
         }}
         className="glass-card border-r border-border flex flex-col shrink-0"
       >
-        <div className="flex items-center justify-between mb-8 px-6 pt-6 shrink-0">
+        <div className={`flex ${isSidebarCollapsed && !isMobileOrTablet ? 'flex-col items-center gap-4 px-2' : 'items-center justify-between px-6'} mb-8 pt-6 shrink-0`}>
           <Link href="/dashboard" className="flex items-center gap-3 group">
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-primary/10 group-hover:scale-105 transition-transform"><BookOpen className="w-5 h-5" /></div>
             {(!isSidebarCollapsed || isMobileOrTablet) && <span className="font-extrabold text-lg bg-gradient-to-r from-foreground to-primary bg-clip-text text-transparent">Lumina</span>}
