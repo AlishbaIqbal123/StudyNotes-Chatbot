@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import { motion } from 'framer-motion';
 import { Moon, Sun, Monitor, Bell, Lock, Globe, Trash2, Database } from 'lucide-react';
 import { useTheme } from '@/components/theme/ThemeProvider';
 
@@ -39,7 +38,7 @@ export default function SettingsPage() {
                     ].map((mode) => (
                         <button 
                             key={mode.id}
-                            onClick={() => setTheme(mode.id as any)}
+                            onClick={() => setTheme(mode.id as 'light' | 'dark' | 'system')}
                             className={`flex flex-col items-start gap-6 p-8 rounded-[2.5rem] border-2 transition-all group ${theme === mode.id ? 'border-primary bg-white shadow-2xl translate-y-[-4px]' : 'border-black/5 bg-white/40 text-muted-foreground hover:border-black/10 hover:bg-white'}`}
                         >
                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 ${theme === mode.id ? 'bg-primary text-white rotate-3' : 'bg-black/5 group-hover:rotate-3'}`}>

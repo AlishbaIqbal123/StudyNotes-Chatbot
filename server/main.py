@@ -52,6 +52,7 @@ async def process_content(
     try:
         raw_text = ""
         topic = "Study Session"
+        source_figures: list = []
 
         if type == "youtube":
             target_url = url or content
@@ -70,6 +71,11 @@ async def process_content(
                 raise HTTPException(status_code=400, detail="No file was uploaded.")
             file_bytes = await file.read()
             raw_text = await ExtractionService.extract_text_from_file(file_bytes, file.filename or "")
+            source_figures = await asyncio.to_thread(
+                ExtractionService.extract_figures_from_file,
+                file_bytes,
+                file.filename or "",
+            )
             if file.filename:
                 topic = os.path.splitext(file.filename)[0].replace("_", " ").replace("-", " ")
 
@@ -92,6 +98,9 @@ async def process_content(
                 detail="Could not extract enough text from the source. Please try different content."
             )
 
+        if type != "file":
+            source_figures = []
+
         # AI Processing - run blocking CPU/IO-bound sync task in a thread pool to avoid blocking the main event loop
         processed = await asyncio.to_thread(
             AIService.process_document,
@@ -99,7 +108,8 @@ async def process_content(
             topic=topic,
             source_type=type,
             source_url=url or "",
-            generation_type=generation_type
+            generation_type=generation_type,
+            source_images=source_figures,
         )
 
         return {
@@ -112,6 +122,8 @@ async def process_content(
             "mind_map": processed.get("mind_map", ""),
             "podcast_script": processed.get("podcast_script", ""),
             "visual_prompt": processed.get("visual_prompt", ""),
+            "exam_cram_notes": processed.get("exam_cram_notes", ""),
+            "presentation_notes": processed.get("presentation_notes", ""),
             "raw_text": raw_text[:2000],
         }
 
@@ -160,13 +172,21 @@ async def generate_more_flashcards(
 async def chat_with_ai(
     prompt: str = Form(...),
     context: str = Form(""),
+    excerpt: Optional[str] = Form(None),
     history: Optional[str] = Form(None),
 ):
     """Stateless AI chat with note context — streams real-time tokens via SSE."""
     try:
         history_list = json.loads(history) if history else []
+        full_context = context or ""
+        if excerpt and excerpt.strip():
+            full_context = (
+                f"{full_context}\n\n"
+                f"--- STUDENT FOCUSED EXCERPT (prioritize this) ---\n"
+                f"{excerpt.strip()[:4000]}"
+            )
         return StreamingResponse(
-            AIService.generate_response_stream(prompt, context, history_list),
+            AIService.generate_response_stream(prompt, full_context, history_list),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",

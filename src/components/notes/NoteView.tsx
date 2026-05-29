@@ -1,12 +1,13 @@
 // src/components/notes/NoteView.tsx
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  BookOpen, ChevronRight, BrainCircuit, Zap, Layers, Mic,
-  Book, Trophy, Image as ImageIcon, X, Menu, GripVertical,
-  Plus, Loader2, Play, Pause, Sparkles, Volume2, VolumeX, Bot
+  BookOpen, ChevronRight, BrainCircuit, Layers, Mic,
+  Book, Trophy, Image as ImageIcon, X, Menu,
+  Plus, Loader2, Play, Pause, Volume2, VolumeX, Bot, Zap,
+  Presentation,
 } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
@@ -18,9 +19,14 @@ import { useNoteData } from '@/hooks/useNoteData';
 import { useChatHistory } from '@/hooks/useChatHistory';
 import { useResizableSidebar } from '@/hooks/useResizableSidebar';
 
-import { studyApi } from '@/lib/api';
 import MermaidDiagram from './MermaidDiagram';
+import AskLuminaPopover, { type AskLuminaAnchor } from './AskLuminaPopover';
 import ChatSidebar from './ChatSidebar';
+import {
+  buildContextualPrompt,
+  type LuminaPromptIntent,
+  type PromptSource,
+} from '@/lib/chatPrompts';
 import QuizSection from './QuizSection';
 import GallerySection from './GallerySection';
 import RateLimitModal from './RateLimitModal';
@@ -29,7 +35,8 @@ import ThemeToggle from '@/components/theme/ThemeToggle';
 import 'katex/dist/katex.min.css';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://Alishba-1342-lumina-backend.hf.space';
-type TabType = 'notes' | 'roadmap' | 'mindmap' | 'quiz' | 'flashcards' | 'podcast' | 'gallery';
+type TabType = 'notes' | 'exam_cram' | 'presentation' | 'roadmap' | 'mindmap' | 'quiz' | 'flashcards' | 'podcast' | 'gallery';
+type ReaderMode = 'study' | 'cram' | 'present';
 
 export default function NoteView({ id }: { id: string }) {
   const { note, loading, error, setNote } = useNoteData(id);
@@ -37,10 +44,14 @@ export default function NoteView({ id }: { id: string }) {
   const { width: sidebarWidth, startResizing } = useResizableSidebar(288, 200, 480);
 
   const [activeTab, setActiveTab] = useState<TabType>('notes');
+  const [readerMode, setReaderMode] = useState<ReaderMode>('study');
+  const [luminaAnchor, setLuminaAnchor] = useState<AskLuminaAnchor | null>(null);
+  const [chatHighlight, setChatHighlight] = useState(false);
   const [chatPrompt, setChatPrompt] = useState('');
   const [isRateLimitOpen, setIsRateLimitOpen] = useState(false);
-  const [showBanner, setShowBanner] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const proseRef = useRef<HTMLDivElement>(null);
+  const pendingExcerptRef = useRef<string | undefined>(undefined);
 
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
   const [isLeftDrawerOpen, setIsLeftDrawerOpen] = useState(false);
@@ -259,11 +270,73 @@ export default function NoteView({ id }: { id: string }) {
     stopKeepAlive()
   }
 
-  const handleNodeClick = (label: string) => {
-    const prompt = `Can you explain the concept "${label}" from our roadmap/mindmap in detail? Please provide: 1. Core Definition, 2. Pre-requisites, 3. Detailed Explanation, and 4. A summary conclusion.`;
-    handleSendMessage(prompt);
-    setShowBanner(true);
+  const focusChat = useCallback((preview: string) => {
+    setIsRightDrawerOpen(true);
+    setChatHighlight(true);
+    setChatPrompt(preview.length > 120 ? `${preview.slice(0, 120)}…` : preview);
+    window.setTimeout(() => setChatHighlight(false), 2200);
+  }, []);
+
+  const handleNodeClick = (label: string, source: PromptSource = 'diagram') => {
+    const prompt = buildContextualPrompt('diagram', {
+      term: label,
+      noteTitle: note?.title,
+      source,
+    });
+    focusChat(`Explain: ${label}`);
+    void handleSendMessage(prompt);
   };
+
+  const handleFixDiagram = (chart: string) => {
+    const prompt = buildContextualPrompt('fix_diagram', {
+      term: chart,
+      diagramChart: chart,
+      noteTitle: note?.title,
+    });
+    focusChat('Fix diagram');
+    void handleSendMessage(prompt);
+  };
+
+  const handleLuminaAsk = (intent: LuminaPromptIntent) => {
+    if (!luminaAnchor) return;
+    const prompt = buildContextualPrompt(intent, {
+      term: luminaAnchor.term,
+      excerpt: luminaAnchor.excerpt,
+      noteTitle: note?.title,
+      source: luminaAnchor.source,
+    });
+    pendingExcerptRef.current = luminaAnchor.excerpt;
+    setLuminaAnchor(null);
+    focusChat(luminaAnchor.term);
+    void handleSendMessage(prompt);
+  };
+
+  const handleProseMouseUp = () => {
+    const sel = window.getSelection();
+    const text = sel?.toString().trim();
+    if (!text || text.length < 3) return;
+    const range = sel?.rangeCount ? sel.getRangeAt(0) : null;
+    if (!range || !proseRef.current?.contains(range.commonAncestorContainer)) return;
+    const rect = range.getBoundingClientRect();
+    setLuminaAnchor({
+      x: rect.left + rect.width / 2 - 134,
+      y: rect.bottom + 10,
+      term: text.length > 56 ? `${text.slice(0, 56)}…` : text,
+      excerpt: text,
+      source: 'selection',
+    });
+  };
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (!luminaAnchor) return;
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-ask-lumina]')) return;
+      setLuminaAnchor(null);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [luminaAnchor]);
 
   useEffect(() => {
     return () => {
@@ -273,7 +346,12 @@ export default function NoteView({ id }: { id: string }) {
   }, [])
 
   const handleSendMessage = async (override?: string) => {
-    const res = await sendMessage(override || chatPrompt);
+    const text = (override || chatPrompt).trim();
+    if (!text) return;
+    const excerpt = pendingExcerptRef.current;
+    pendingExcerptRef.current = undefined;
+    if (override) focusChat(text);
+    const res = await sendMessage(text, excerpt ? { excerpt } : undefined);
     if (res.error === "RATE_LIMIT_REACHED") setIsRateLimitOpen(true);
     if (!override) setChatPrompt('');
   };
@@ -321,10 +399,13 @@ export default function NoteView({ id }: { id: string }) {
       const data = await res.json();
 
       if (data.flashcards && data.flashcards.length > 0) {
-        setNote((prev: any) => ({
-          ...prev,
-          flashcards: [...(prev?.flashcards || []), ...data.flashcards],
-        }));
+        setNote((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            flashcards: [...(prev.flashcards || []), ...data.flashcards],
+          };
+        });
       }
     } catch (err) {
       console.error("Failed to generate more flashcards:", err);
@@ -373,10 +454,13 @@ export default function NoteView({ id }: { id: string }) {
       const data = await res.json();
 
       if (data.questions && data.questions.length > 0) {
-        setNote((prev: any) => ({
-          ...prev,
-          quizzes: [...(prev?.quizzes || []), ...data.questions],
-        }));
+        setNote((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            quizzes: [...(prev.quizzes || []), ...data.questions],
+          };
+        });
       }
     } catch (err) {
       console.error("Failed to generate more quiz questions:", err);
@@ -410,6 +494,15 @@ export default function NoteView({ id }: { id: string }) {
     // Remove IMAGE_URL_HERE placeholder lines
     .replace(/!\[.*?\]\(IMAGE_URL_HERE\)/g, '')
     .trim();
+
+  const examCramContent = (note.exam_cram_notes || '').trim();
+  const presentationContent = (note.presentation_notes || '').trim();
+  const activeMarkdown =
+    activeTab === 'exam_cram'
+      ? examCramContent
+      : activeTab === 'presentation'
+        ? presentationContent
+        : notesContent;
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans">
@@ -458,6 +551,8 @@ export default function NoteView({ id }: { id: string }) {
               title: 'Study Core',
               items: [
                 { id: 'notes', label: 'Detailed Notes', icon: Book },
+                { id: 'exam_cram', label: 'Exam Cram', icon: Zap },
+                { id: 'presentation', label: 'Presentation', icon: Presentation },
                 { id: 'roadmap', label: 'Study Roadmap', icon: ChevronRight },
                 { id: 'mindmap', label: 'Concept Map', icon: BrainCircuit },
               ]
@@ -566,8 +661,46 @@ export default function NoteView({ id }: { id: string }) {
 
             <AnimatePresence mode="wait">
               <motion.article key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="pb-32">
-                {activeTab === 'notes' && (
-                  <div className={`lumina-prose ${isSidebarCollapsed ? 'full-width' : ''}`}>
+                {(activeTab === 'notes' || activeTab === 'exam_cram' || activeTab === 'presentation') && (
+                  <>
+                {activeTab === 'exam_cram' && !examCramContent && (
+                  <p className="text-sm text-muted-foreground mb-6 px-4 py-3 rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/5">
+                    No exam cram sheet yet. Re-upload with <strong>Exam Tomorrow</strong> or <strong>Full Mastery Package</strong> to generate a separate cram view.
+                  </p>
+                )}
+                {activeTab === 'presentation' && !presentationContent && (
+                  <p className="text-sm text-muted-foreground mb-6 px-4 py-3 rounded-2xl border border-dashed border-primary/40 bg-primary/5">
+                    No presentation outline yet. Re-upload with <strong>Presentation Prep</strong> or <strong>Full Mastery Package</strong>.
+                  </p>
+                )}
+                {activeTab === 'exam_cram' && !examCramContent ? null : activeTab === 'presentation' && !presentationContent ? null : (
+                  <>
+                <div className="flex flex-wrap gap-2 mb-8">
+                  {([
+                    { id: 'study' as ReaderMode, label: 'Study', icon: Book },
+                    { id: 'cram' as ReaderMode, label: 'Cram', icon: Zap },
+                    { id: 'present' as ReaderMode, label: 'Present', icon: Presentation },
+                  ]).map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setReaderMode(m.id)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                        readerMode === m.id
+                          ? 'bg-primary text-white shadow-md shadow-primary/20'
+                          : 'bg-card border border-border text-muted-foreground hover:border-primary/30'
+                      }`}
+                    >
+                      <m.icon className="w-3.5 h-3.5" />
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                  <div
+                    ref={proseRef}
+                    onMouseUp={handleProseMouseUp}
+                    className={`lumina-prose lumina-reader-${readerMode} ${isSidebarCollapsed ? 'full-width' : ''}`}
+                  >
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkMath]}
                       rehypePlugins={[rehypeKatex]}
@@ -624,15 +757,40 @@ export default function NoteView({ id }: { id: string }) {
                             opacity: 0.85
                           }}>{children}</p>
                         ),
-                        strong: ({ children }) => (
-                          <strong style={{
+                        strong: ({ children }) => {
+                          const term = (Array.isArray(children) ? children.join('') : String(children ?? ''))
+                            .replace(/\*\*/g, '').trim();
+                          return (
+                          <strong
+                            role="button"
+                            tabIndex={0}
+                            title="Click to ask Lumina about this term"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              setLuminaAnchor({
+                                x: rect.left,
+                                y: rect.bottom + 8,
+                                term: term.slice(0, 80) || 'this term',
+                                source: 'term',
+                              });
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                (e.currentTarget as HTMLElement).click();
+                              }
+                            }}
+                            style={{
                             backgroundColor: 'rgba(30, 64, 175, 0.08)',
                             color: 'var(--primary)',
                             padding: '1px 5px',
                             borderRadius: '3px',
-                            fontWeight: 700
+                            fontWeight: 700,
+                            cursor: 'pointer',
                           }}>{children}</strong>
-                        ),
+                          );
+                        },
                         em: ({ children }) => (
                           <em style={{
                             color: '#10B981',
@@ -737,7 +895,7 @@ export default function NoteView({ id }: { id: string }) {
                          tbody: ({ children }) => (
                            <tbody>{children}</tbody>
                          ),
-                         tr: ({ children }: any) => (
+                         tr: ({ children }: { children?: React.ReactNode }) => (
                            <tr style={{ borderBottom: '1px solid var(--border)' }}
                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
@@ -755,6 +913,7 @@ export default function NoteView({ id }: { id: string }) {
                              minWidth: '100px',
                            }}>{children}</td>
                         ),
+                        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
                         code({ node, inline, className, children, ...props }: any) {
                           const match = /language-mermaid/.exec(className || '')
                           if (!inline && match) {
@@ -763,6 +922,7 @@ export default function NoteView({ id }: { id: string }) {
                                 <MermaidDiagram
                                   chart={String(children).replace(/\n$/, '')}
                                   onNodeClick={handleNodeClick}
+                                  onFixDiagram={handleFixDiagram}
                                 />
                               </div>
                             )
@@ -860,13 +1020,16 @@ export default function NoteView({ id }: { id: string }) {
                         ),
                       }}
                     >
-                      {notesContent}
+                      {activeMarkdown}
                     </ReactMarkdown>
                   </div>
+                  </>
+                )}
+                  </>
                 )}
 
-                {activeTab === 'roadmap' && <div className="bg-card border rounded-[2rem] p-8 shadow-sm"><MermaidDiagram chart={note.roadmap} onNodeClick={handleNodeClick} /></div>}
-                {activeTab === 'mindmap' && <div className="bg-card border rounded-[2rem] p-8 shadow-sm"><MermaidDiagram chart={note.mind_map} onNodeClick={handleNodeClick} /></div>}
+                {activeTab === 'roadmap' && <div className="bg-card border rounded-[2rem] p-8 shadow-sm"><MermaidDiagram chart={note.roadmap} onNodeClick={handleNodeClick} diagramSource="roadmap" onFixDiagram={handleFixDiagram} /></div>}
+                {activeTab === 'mindmap' && <div className="bg-card border rounded-[2rem] p-8 shadow-sm"><MermaidDiagram chart={note.mind_map} onNodeClick={handleNodeClick} diagramSource="mindmap" onFixDiagram={handleFixDiagram} /></div>}
                 {activeTab === 'quiz' && (
                   <div className="space-y-10">
                     {/* Header */}
@@ -896,7 +1059,7 @@ export default function NoteView({ id }: { id: string }) {
                           <Trophy className="w-8 h-8 text-primary" />
                         </div>
                         <p className="font-bold text-lg mb-2">No quiz questions yet</p>
-                        <p className="text-muted-foreground text-sm mb-6">Click "More Questions" to generate a quiz for this note.</p>
+                        <p className="text-muted-foreground text-sm mb-6">Click &quot;More Questions&quot; to generate a quiz for this note.</p>
                       </div>
                     )}
 
@@ -933,7 +1096,7 @@ export default function NoteView({ id }: { id: string }) {
                           <Layers className="w-8 h-8 text-primary" />
                         </div>
                         <p className="font-bold text-lg mb-2">No flashcards yet</p>
-                        <p className="text-muted-foreground text-sm mb-6">Click "More Cards" to generate flashcards for this note.</p>
+                        <p className="text-muted-foreground text-sm mb-6">Click &quot;More Cards&quot; to generate flashcards for this note.</p>
                       </div>
                     )}
 
@@ -1253,12 +1416,20 @@ export default function NoteView({ id }: { id: string }) {
         </div>
       </main >
 
+      <AskLuminaPopover
+        anchor={luminaAnchor}
+        onClose={() => setLuminaAnchor(null)}
+        onAsk={handleLuminaAsk}
+      />
+
       <ChatSidebar 
         history={history} 
         loading={chatLoading} 
         prompt={chatPrompt} 
         onPromptChange={setChatPrompt} 
         onSendMessage={handleSendMessage}
+        noteTitle={note.title}
+        highlight={chatHighlight}
         isMobileOrTablet={isMobileOrTablet}
         isOpen={isRightDrawerOpen}
         onClose={() => setIsRightDrawerOpen(false)}

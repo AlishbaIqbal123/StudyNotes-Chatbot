@@ -27,8 +27,44 @@ const palettes = [
   { from: 'color-mix(in srgb, #D97706, transparent 92%)', to: 'color-mix(in srgb, #D97706, transparent 86%)', accent: '#D97706', shadow: 'rgba(217,119,6,0.1)' },
 ];
 
+interface DashboardNote {
+  id: string;
+  title?: string;
+  source_type?: string;
+  createdAt?: { seconds: number } | string | number | Date;
+  isGuest?: boolean;
+  visual_prompt?: string;
+  quizzes?: unknown[];
+  flashcards?: unknown[];
+  [key: string]: unknown;
+}
+
+interface QuoteItem {
+  id: string;
+  renderType: 'quote';
+  quote: string;
+  author: string;
+}
+
+interface ActionItem {
+  id: string;
+  renderType: 'action';
+  title: string;
+  desc: string;
+  subject: string;
+}
+
+interface NoteItem {
+  id: string;
+  renderType: 'note';
+  data: DashboardNote;
+  index: number;
+}
+
+type GridItem = QuoteItem | ActionItem | NoteItem;
+
 export default function DashboardPage() {
-  const [notes, setNotes] = useState<any[]>([]);
+  const [notes, setNotes] = useState<DashboardNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'youtube' | 'file' | 'text'>('all');
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -36,8 +72,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
+    let timer: NodeJS.Timeout | null = null;
 
-    const getGuestNotes = () => {
+    const getGuestNotes = (): DashboardNote[] => {
       try {
         return Object.keys(localStorage)
           .filter(k => k.startsWith('lumina_guest_note_'))
@@ -58,7 +95,7 @@ export default function DashboardPage() {
         q,
         { includeMetadataChanges: false },
         (snap) => {
-          const userNotes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const userNotes = snap.docs.map(d => ({ id: d.id, ...d.data() } as DashboardNote));
           setNotes([...userNotes, ...getGuestNotes()]);
           setLoading(false);
         },
@@ -69,11 +106,16 @@ export default function DashboardPage() {
         }
       );
     } else {
-      setNotes(getGuestNotes());
-      setLoading(false);
+      timer = setTimeout(() => {
+        setNotes(getGuestNotes());
+        setLoading(false);
+      }, 0);
     }
 
-    return () => { if (unsubscribe) unsubscribe(); };
+    return () => {
+      if (unsubscribe) unsubscribe();
+      if (timer) clearTimeout(timer);
+    };
   }, [user?.id]);
 
   const handleDelete = async (noteId: string, isGuest: boolean) => {
@@ -247,7 +289,7 @@ export default function DashboardPage() {
         {/* PIN GRID */}
         {!loading && filteredNotes.length > 0 && (() => {
           // Generate heterogeneous list
-          const itemsToRender: any[] = [];
+          const itemsToRender: GridItem[] = [];
           let noteInserted = 0;
 
           for (let i = 0; i < Math.max(filteredNotes.length + 2, 4); i++) {
@@ -346,7 +388,11 @@ export default function DashboardPage() {
                 const Icon = getTypeIcon(type);
                 const palette = palettes[item.index % palettes.length];
                 const date = note.createdAt
-                  ? new Date(note.createdAt.seconds ? note.createdAt.seconds * 1000 : note.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  ? new Date(
+                      typeof note.createdAt === 'object' && note.createdAt && 'seconds' in note.createdAt
+                        ? (note.createdAt as { seconds: number }).seconds * 1000
+                        : (note.createdAt as string | number | Date)
+                    ).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                   : 'Recent Archive';
 
                 return (

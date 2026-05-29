@@ -640,3 +640,37 @@ h4, button, nav { font-family: 'Space Grotesk', sans-serif; }
 .shadow-gold-glow {
   box-shadow: 0 10px 30px -10px rgba(245, 158, 11, 0.3);
 }
+
+/* Note reader modes (Study / Cram / Present) */
+.lumina-reader-cram.lumina-prose {
+  max-width: 64ch;
+}
+
+.lumina-reader-cram.lumina-prose p,
+.lumina-reader-cram.lumina-prose li {
+  font-size: 1.08rem;
+  line-height: 1.75;
+}
+
+.lumina-reader-cram.lumina-prose blockquote {
+  border-left-width: 5px;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.lumina-reader-present.lumina-prose {
+  max-width: 56ch;
+}
+
+.lumina-reader-present.lumina-prose h1 {
+  font-size: 3rem !important;
+}
+
+.lumina-reader-present.lumina-prose h2 {
+  font-size: 2.2rem !important;
+}
+
+.lumina-reader-present.lumina-prose p {
+  font-size: 1.2rem;
+  line-height: 1.85;
+  opacity: 1;
+}

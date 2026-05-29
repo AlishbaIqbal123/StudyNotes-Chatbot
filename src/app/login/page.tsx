@@ -187,7 +187,7 @@ export default function LoginPage() {
           className="text-center text-sm font-medium mt-6"
           style={{ color: 'var(--muted-foreground)', fontFamily: "'Manrope', sans-serif" }}
         >
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/signup" className="font-bold hover:underline" style={{ color: 'var(--primary)' }}>
             Sign up for free
           </Link>

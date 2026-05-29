@@ -16,13 +16,18 @@ interface AggregatedCard {
   noteId: string;
 }
 
+interface FlashcardItem {
+  front: string;
+  back: string;
+}
+
 function getGuestCards(): AggregatedCard[] {
   try {
     return Object.keys(localStorage)
       .filter(k => k.startsWith('lumina_guest_note_'))
       .flatMap(k => {
         const note = JSON.parse(localStorage.getItem(k) || '{}');
-        return (note.flashcards || []).map((c: any) => ({
+        return (note.flashcards || []).map((c: FlashcardItem) => ({
           front: c.front,
           back: c.back,
           noteTitle: note.title || 'Guest Note',
@@ -52,7 +57,7 @@ export default function FlashcardsPage() {
           const snap = await getDocs(q);
           snap.docs.forEach(d => {
             const note = d.data();
-            (note.flashcards || []).forEach((c: any) => {
+            (note.flashcards || []).forEach((c: FlashcardItem) => {
               all.push({ front: c.front, back: c.back, noteTitle: note.title || 'Untitled', noteId: d.id });
             });
           });

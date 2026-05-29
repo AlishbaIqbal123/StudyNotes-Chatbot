@@ -14,6 +14,8 @@ export interface FlashcardItem {
 export interface NoteData {
   title: string;
   simplified_notes: string;
+  exam_cram_notes?: string;
+  presentation_notes?: string;
   simplified_content?: string; // Legacy field support
   source_text?: string;
   quizzes: QuizItem[];
@@ -25,7 +27,7 @@ export interface NoteData {
   visual_style_prompt: string;
   source_type?: string;
   raw_text?: string;
-  timestamp?: any;
+  timestamp?: unknown;
 }
 
 export interface ChatMessage {

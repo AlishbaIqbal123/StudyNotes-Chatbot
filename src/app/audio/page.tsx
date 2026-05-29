@@ -71,7 +71,10 @@ export default function AudioLabsPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !('speechSynthesis' in window)) {
-      setBrowserSupported(false);
+      const timer = setTimeout(() => {
+        setBrowserSupported(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -238,8 +241,15 @@ export default function AudioLabsPage() {
     if (voices.length > 0) {
       doSpeak(voices);
     } else {
-      synth.onvoiceschanged = () => { synth.onvoiceschanged = null; doSpeak(synth.getVoices()); };
-      setTimeout(() => doSpeak(synth.getVoices()), 400);
+      const handleVoicesChanged = () => {
+        synth.removeEventListener('voiceschanged', handleVoicesChanged);
+        doSpeak(synth.getVoices());
+      };
+      synth.addEventListener('voiceschanged', handleVoicesChanged);
+      setTimeout(() => {
+        synth.removeEventListener('voiceschanged', handleVoicesChanged);
+        doSpeak(synth.getVoices());
+      }, 400);
     }
   };
 

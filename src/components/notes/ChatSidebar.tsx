@@ -3,10 +3,11 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Bot, Send, GripVertical, X } from 'lucide-react';
+import { Bot, Send, X } from 'lucide-react';
 import { ChatMessage } from '@/types/note.types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { CHAT_SUGGESTED_PILLS, buildContextualPrompt } from '@/lib/chatPrompts';
 
 interface ChatSidebarProps {
   history: ChatMessage[];
@@ -14,6 +15,8 @@ interface ChatSidebarProps {
   prompt: string;
   onPromptChange: (val: string) => void;
   onSendMessage: (override?: string) => void;
+  noteTitle?: string;
+  highlight?: boolean;
   isMobileOrTablet?: boolean;
   isOpen?: boolean;
   onClose?: () => void;
@@ -25,6 +28,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   prompt,
   onPromptChange,
   onSendMessage,
+  noteTitle = '',
+  highlight = false,
   isMobileOrTablet = false,
   isOpen = false,
   onClose,
@@ -68,12 +73,6 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     };
   }, []);
 
-  const suggestedPills = [
-    { label: '📋 Summarize', val: 'Summarize this topic simply' },
-    { label: '🔑 Key Points', val: 'What are the 5 key points?' },
-    { label: '❓ Quiz Me', val: 'Ask me a quiz question about this' },
-  ];
-
   return (
     <aside
       style={{ 
@@ -88,7 +87,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         zIndex: isMobileOrTablet ? 50 : 10,
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
       }}
-      className="border-l border-border/60 flex flex-col glass-card overflow-hidden shrink-0"
+      className={`border-l flex flex-col glass-card overflow-hidden shrink-0 transition-shadow duration-500 ${
+        highlight ? 'border-primary shadow-[-4px_0_24px_rgba(124,58,237,0.25)] ring-2 ring-primary/30' : 'border-border/60'
+      }`}
     >
       {/* Resize handle — left edge */}
       {!isMobileOrTablet && (
@@ -182,7 +183,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                         </td>
                       ),
                       // Code blocks — scrollable
-                      code: ({ className, children, ...props }: any) => (
+                      code: ({ className, children, ...props }: React.ComponentProps<'code'>) => (
                         <code
                           style={{ fontSize: '0.75rem', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}
                           className={className}
@@ -219,10 +220,18 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       <div className="p-4 border-t border-border/50 space-y-3 bg-card/45 backdrop-blur-md shrink-0">
         {/* Quick pills */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {suggestedPills.map(p => (
+          {CHAT_SUGGESTED_PILLS.map(p => (
             <button
               key={p.label}
-              onClick={() => onSendMessage(p.val)}
+              type="button"
+              onClick={() => {
+                const full = buildContextualPrompt(p.intent, {
+                  term: p.term,
+                  noteTitle,
+                  source: 'selection',
+                });
+                onSendMessage(full);
+              }}
               className="shrink-0 px-3.5 py-1.5 rounded-full border border-border/85 bg-card text-[10px] font-bold text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5 hover:scale-105 active:scale-95 transition-all whitespace-nowrap shadow-sm"
             >
               {p.label}

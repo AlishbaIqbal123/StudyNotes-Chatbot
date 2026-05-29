@@ -23,10 +23,11 @@ export default function ForgotPasswordPage() {
     try {
       await sendPasswordResetEmail(auth, email.trim());
       setSuccess(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // For user-not-found and invalid-email, show success anyway (avoid enumeration)
       const benignCodes = ['auth/user-not-found', 'auth/invalid-email'];
-      if (benignCodes.includes(err?.code)) {
+      const errorVal = err as { code?: string };
+      if (errorVal?.code && benignCodes.includes(errorVal.code)) {
         setSuccess(true);
       } else {
         setError('Something went wrong. Please try again.');
@@ -51,7 +52,7 @@ export default function ForgotPasswordPage() {
           Reset Password
         </h2>
         <p className="mt-2 text-center text-muted-foreground font-medium">
-          We'll send a reset link to your email.
+          We&apos;ll send a reset link to your email.
         </p>
       </div>
 
@@ -72,7 +73,7 @@ export default function ForgotPasswordPage() {
                   Check your email
                 </h3>
                 <p className="text-muted-foreground font-medium mb-8">
-                  If an account exists for <strong>{email}</strong>, you'll receive a reset link shortly.
+                  If an account exists for <strong>{email}</strong>, you&apos;ll receive a reset link shortly.
                 </p>
                 <Link
                   href="/login"

@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, LayoutGrid, Clock, Star, Settings, LogOut,
-  Bell, User as UserIcon, Sparkles, Search as SearchIcon,
+  Plus, LayoutGrid, LogOut,
+  User as UserIcon, Sparkles, Search as SearchIcon,
   ChevronLeft, ChevronRight, BookOpen, Zap, Upload,
-  BrainCircuit, Headphones, Command, Menu, X
+  BrainCircuit, Headphones, Menu, X
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -30,7 +30,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, logout } = useAuth();
 
   useEffect(() => {
-    setMounted(true);
+    const timeout = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timeout);
   }, []);
 
   const sidebarW = collapsed ? 88 : 280;

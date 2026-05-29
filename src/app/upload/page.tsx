@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -12,7 +12,6 @@ import { studyApi } from '@/lib/api';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
-import Link from 'next/link';
 import RateLimitModal from '@/components/notes/RateLimitModal';
 
 // ── Error classifier ──────────────────────────────────────────────────────────
@@ -22,14 +21,15 @@ interface ClassifiedError {
   isRetryable: boolean;
 }
 
-function classifyError(err: any): ClassifiedError {
-  const status = err?.response?.status;
-  const detail = (err?.response?.data?.detail || err?.message || '').toLowerCase();
+function classifyError(err: unknown): ClassifiedError {
+  const errorVal = err as { response?: { status?: number; data?: { detail?: string } }; message?: string; code?: string };
+  const status = errorVal?.response?.status;
+  const detail = (errorVal?.response?.data?.detail || errorVal?.message || '').toLowerCase();
 
   if (status === 429) {
     return { message: '', isRateLimit: true, isRetryable: false };
   }
-  if (!err?.response && (err?.code === 'ERR_NETWORK' || err?.message?.includes('Network'))) {
+  if (!errorVal?.response && (errorVal?.code === 'ERR_NETWORK' || errorVal?.message?.includes('Network'))) {
     return {
       message: 'Network error — please check your connection and try again.',
       isRateLimit: false,
@@ -58,7 +58,7 @@ function classifyError(err: any): ClassifiedError {
     };
   }
   return {
-    message: err?.response?.data?.detail || err?.message || 'An unexpected error occurred. Please try again.',
+    message: errorVal?.response?.data?.detail || errorVal?.message || 'An unexpected error occurred. Please try again.',
     isRateLimit: false,
     isRetryable: false,
   };
@@ -96,7 +96,6 @@ export default function UploadPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'upload' | 'youtube' | 'text'>('upload');
   const [loading, setLoading] = useState(false);
-  const [stepIdx, setStepIdx] = useState(0);
   const [dynamicStatusText, setDynamicStatusText] = useState(steps[0]);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -116,12 +115,17 @@ export default function UploadPage() {
   const [lastProcessType, setLastProcessType] = useState<string>('');
 
   const generationOptions = [
-    { id: 'all', label: 'Full Mastery Package', desc: 'Notes, Quiz, Flashcards, Roadmap, Audio' },
-    { id: 'notes', label: 'Detailed Notes only', desc: 'Core study material' },
+    { id: 'all', label: 'Full Mastery Package', desc: 'Detailed notes + exam cram + presentation + quiz + more' },
+    { id: 'exam_cram', label: 'Exam Tomorrow', desc: 'Ultra-short cram sheet (tables & facts only)' },
+    { id: 'presentation', label: 'Presentation Prep', desc: 'Slide-by-slide speaker outline' },
+    { id: 'notes', label: 'Detailed Notes only', desc: 'In-depth study guide with section diagrams' },
     { id: 'quiz', label: 'Knowledge Quiz only', desc: '15-20+ adaptive questions' },
     { id: 'flashcards', label: 'Flashcard Deck only', desc: '25-30+ recall cards' },
     { id: 'podcast', label: 'Audio Labs only', desc: 'Deep-dive podcast script' },
   ];
+
+  const generationTip =
+    'Tip: Full Mastery and Exam Tomorrow include roadmap & mind-map diagrams. If OpenRouter rate-limits (free tier), wait ~60s and tap Retry.';
 
   const getExistingNotesCount = async (): Promise<number> => {
     try {
@@ -148,7 +152,6 @@ export default function UploadPage() {
         
         if (s < steps.length - 1 && p > (s + 1) * 18) {
           s++;
-          setStepIdx(s);
           setDynamicStatusText(steps[s]);
         }
       } else {
@@ -188,7 +191,6 @@ export default function UploadPage() {
     setError(null);
     setLoading(true);
     setProgress(5);
-    setStepIdx(0);
     const iv = simulateProgress();
 
     try {
@@ -201,7 +203,7 @@ export default function UploadPage() {
             throw new Error('Please provide a valid YouTube URL.');
           }
           // Pass title and channel to the API
-          response = await (studyApi as any).processYoutube(youtubeUrl, generationType, videoTitle, channelName);
+          response = await studyApi.processYoutube(youtubeUrl, generationType, videoTitle, channelName);
         }
       }
       else if (type === 'text') {
@@ -215,7 +217,6 @@ export default function UploadPage() {
 
       clearInterval(iv);
       setProgress(100);
-      setStepIdx(steps.length - 1);
       setDynamicStatusText('Completed! Redirecting to study board...');
 
       // Normalise response — axios wraps in {data}, fetch returns raw JSON
@@ -250,11 +251,12 @@ export default function UploadPage() {
         // Response came back but status isn't 'completed'
         throw new Error(responseData?.detail || 'Generation failed. Please try again.');
       }
-    } catch (err: any) {
+    } catch (err) {
       clearInterval(iv);
+      const errorVal = err as { response?: { data?: { detail?: string } }; message?: string };
       console.error("[LUMINA] Ingestion failed with error:", err);
-      if (err?.response) {
-        console.error("[LUMINA] Backend Response:", err.response.data);
+      if (errorVal?.response) {
+        console.error("[LUMINA] Backend Response:", errorVal.response.data);
       }
       const classified = classifyError(err);
       if (classified.isRateLimit) {
@@ -262,14 +264,13 @@ export default function UploadPage() {
         setExistingNotesCount(count);
         setShowLimitModal(true);
       } else {
-        const rawMessage = err?.response?.data?.detail || err?.message || '';
+        const rawMessage = errorVal?.response?.data?.detail || errorVal?.message || '';
         const displayMessage = rawMessage ? `${classified.message} (Detail: ${rawMessage})` : classified.message;
         setError(displayMessage);
         setIsRetryable(classified.isRetryable);
       }
       setLoading(false);
       setProgress(0);
-      setStepIdx(0);
       setDynamicStatusText(steps[0]);
     }
   };
@@ -451,6 +452,7 @@ export default function UploadPage() {
                           </button>
                         ))}
                       </div>
+                      <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">{generationTip}</p>
                     </div>
                     <button disabled={!file || loading} onClick={() => handleProcess('file')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Initiate Synthesis</button>
                   </motion.div>
@@ -521,6 +523,7 @@ export default function UploadPage() {
                           </button>
                         ))}
                       </div>
+                      <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">{generationTip}</p>
                     </div>
                     <button
                       disabled={loading || (showManualInput ? manualTranscript.length < 50 : !youtubeUrl)}
@@ -549,6 +552,7 @@ export default function UploadPage() {
                           </button>
                         ))}
                       </div>
+                      <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">{generationTip}</p>
                     </div>
                     <button disabled={rawText.length < 50 || loading} onClick={() => handleProcess('text')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Harmonize Concepts</button>
                   </motion.div>

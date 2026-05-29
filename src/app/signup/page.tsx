@@ -5,7 +5,7 @@ import AuthLayout from '@/components/auth/AuthLayout';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Mail, Lock, User, Loader2, ShieldCheck, AlertCircle, ArrowRight, Globe, Sparkles } from 'lucide-react';
+import { Mail, Lock, User, Loader2, ShieldCheck, AlertCircle, Globe, Sparkles } from 'lucide-react';
 
 import Link from 'next/link';
 import { auth, db } from '@/lib/firebase';
@@ -46,8 +46,9 @@ export default function SignupPage() {
         createdAt: new Date().toISOString(),
       });
       router.push('/dashboard');
-    } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
+    } catch (err) {
+      const errorVal = err as { code?: string };
+      if (errorVal.code === 'auth/email-already-in-use') {
         setError('This email is already registered.');
       } else {
         setError('Failed to create account. Please try again.');

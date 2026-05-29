@@ -38,9 +38,13 @@ export default function RateLimitModal({
       return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    setTimeLeft(calculateTime());
+    const initialTime = calculateTime();
+    const timeout = setTimeout(() => setTimeLeft(initialTime), 0);
     const interval = setInterval(() => setTimeLeft(calculateTime()), 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, [isOpen]);
 
   const handleViewNotes = () => {

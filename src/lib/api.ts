@@ -20,8 +20,8 @@ api.interceptors.request.use((config) => {
 export default api;
 
 export const authApi = {
-  signup: (data: any) => api.post('/auth/signup', data),
-  login: (data: any) => api.post('/auth/login', data),
+  signup: (data: Record<string, unknown>) => api.post('/auth/signup', data),
+  login: (data: Record<string, unknown>) => api.post('/auth/login', data),
 };
 
 export const studyApi = {
@@ -69,7 +69,7 @@ export const studyApi = {
   getNote: (noteId: string) => api.get(`/notes/${noteId}`),
 
   // FIX: Server expects Form data, not JSON
-  chat: (prompt: string, context: string, history: any[] = []) => {
+  chat: (prompt: string, context: string, history: unknown[] = []) => {
     const formData = new FormData();
     formData.append('prompt', prompt);
     formData.append('context', context);
@@ -79,7 +79,7 @@ export const studyApi = {
     });
   },
 
-  generateMoreQuiz: (sourceText: string, existingQuestions: any[] = []) => {
+  generateMoreQuiz: (sourceText: string, existingQuestions: unknown[] = []) => {
     const formData = new FormData();
     formData.append('source_text', sourceText);
     formData.append('existing_questions', JSON.stringify(existingQuestions));
@@ -88,7 +88,7 @@ export const studyApi = {
     });
   },
 
-  generateMoreFlashcards: (sourceText: string, existingCards: any[] = []) => {
+  generateMoreFlashcards: (sourceText: string, existingCards: unknown[] = []) => {
     const formData = new FormData();
     formData.append('source_text', sourceText);
     formData.append('existing_cards', JSON.stringify(existingCards));

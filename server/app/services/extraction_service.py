@@ -1,6 +1,6 @@
 # hf_final_deploy/app/services/extraction_service.py
-import re, io, html, asyncio
-from typing import Optional
+import re, io, html, asyncio, base64
+from typing import Optional, List, Dict
 
 
 def _extract_youtube_id(url: str):
@@ -160,7 +160,83 @@ def _extract_txt(content: bytes) -> str:
     raise ValueError("Could not decode text file. Please use UTF-8 encoding.")
 
 
+def _extract_pdf_figures(content: bytes, max_images: int = 8) -> List[Dict]:
+    figures: List[Dict] = []
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            for page_num, page in enumerate(pdf.pages[:15]):
+                if len(figures) >= max_images or not page.images:
+                    continue
+                try:
+                    page_image = page.to_image(resolution=110)
+                    pil = page_image.original
+                    for img in page.images[:3]:
+                        if len(figures) >= max_images:
+                            break
+                        x0, top, x1, bottom = img["x0"], img["top"], img["x1"], img["bottom"]
+                        crop = pil.crop((x0, top, x1, bottom))
+                        if crop.width < 60 or crop.height < 60:
+                            continue
+                        buf = io.BytesIO()
+                        crop.save(buf, format="PNG")
+                        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+                        figures.append({
+                            "url": f"data:image/png;base64,{b64}",
+                            "alt": f"Figure from page {page_num + 1}",
+                            "caption": f"From your uploaded PDF (page {page_num + 1})",
+                            "source": "upload",
+                        })
+                except Exception as e:
+                    print(f"[LUMINA] PDF figure page {page_num + 1}: {e}")
+    except Exception as e:
+        print(f"[LUMINA] PDF figures failed: {e}")
+    return figures
+
+
+def _extract_pptx_figures(content: bytes, max_images: int = 8) -> List[Dict]:
+    figures: List[Dict] = []
+    try:
+        from pptx import Presentation
+        from pptx.enum.shapes import MSO_SHAPE_TYPE
+        prs = Presentation(io.BytesIO(content))
+        for slide_num, slide in enumerate(prs.slides, 1):
+            if len(figures) >= max_images:
+                break
+            for shape in slide.shapes:
+                if len(figures) >= max_images:
+                    break
+                if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+                    try:
+                        blob = shape.image.blob
+                        ext = (shape.image.ext or "png").lower()
+                        mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+                        b64 = base64.b64encode(blob).decode("ascii")
+                        figures.append({
+                            "url": f"data:{mime};base64,{b64}",
+                            "alt": f"Slide {slide_num} figure",
+                            "caption": f"From your uploaded slides (slide {slide_num})",
+                            "source": "upload",
+                        })
+                    except Exception as e:
+                        print(f"[LUMINA] PPTX image slide {slide_num}: {e}")
+    except Exception as e:
+        print(f"[LUMINA] PPTX figures failed: {e}")
+    return figures
+
+
 class ExtractionService:
+
+    @staticmethod
+    def extract_figures_from_file(file_content: bytes, filename: str) -> List[Dict]:
+        if not filename:
+            return []
+        name = filename.lower()
+        if name.endswith(".pdf"):
+            return _extract_pdf_figures(file_content)
+        if name.endswith((".pptx", ".ppt")):
+            return _extract_pptx_figures(file_content)
+        return []
 
     @staticmethod
     def extract_youtube_id(url: str):

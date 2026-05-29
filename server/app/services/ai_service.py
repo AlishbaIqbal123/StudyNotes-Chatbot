@@ -168,46 +168,45 @@ def _stream_cascade(messages: List[Dict], models: List[str]):
     yield f"data: {json.dumps({'error': 'COMMUNICATION_ERROR', 'message': str(last_error)})}\n\n"
 
 
-def _fetch_educational_images(topic: str) -> List[Dict]:
-    images = []
+def _merge_images_for_notes(compressed: str, topic: str, source_images: List[Dict]) -> List[Dict]:
+    """Prefer figures from the uploaded document; never inject random stock photos."""
+    images: List[Dict] = []
+    seen = set()
+    for img in source_images or []:
+        url = (img.get("url") or "").strip()
+        if url and url not in seen:
+            seen.add(url)
+            images.append({
+                "url": url,
+                "alt": img.get("alt") or "Source figure",
+                "caption": img.get("caption") or "From your uploaded material",
+                "source": img.get("source") or "upload",
+            })
+    if len(images) >= 2:
+        print(f"[LUMINA] Using {len(images)} uploaded/source figures only")
+        return images[:8]
+
+    # At most one optional wiki image tied to the document title (not generic stock)
     try:
         r = requests.get(
-            f"https://en.wikipedia.org/w/api.php?action=query&titles={topic.replace(' ','_')}"
-            f"&prop=pageimages&format=json&pithumbsize=800&pilimit=3",
-            timeout=8
+            f"https://en.wikipedia.org/w/api.php?action=query&titles={topic.replace(' ', '_')}"
+            f"&prop=pageimages&format=json&pithumbsize=800&pilimit=1",
+            timeout=8,
         )
         for page in r.json().get("query", {}).get("pages", {}).values():
             src = page.get("thumbnail", {}).get("source", "")
-            if src:
-                images.append({"url": src, "alt": f"{topic}", "caption": f"{topic} — Wikipedia"})
-    except Exception as e:
-        print(f"[LUMINA] Wiki image failed: {e}")
-
-    try:
-        r = requests.get(
-            f"https://commons.wikimedia.org/w/api.php?action=query&list=search"
-            f"&srsearch={topic}&srnamespace=6&format=json&srlimit=4",
-            timeout=8
-        )
-        for item in r.json().get("query", {}).get("search", [])[:4]:
-            title = item.get("title", "").replace("File:", "").replace(" ", "_")
-            if title:
+            if src and src not in seen:
                 images.append({
-                    "url": f"https://commons.wikimedia.org/wiki/Special:FilePath/{title}?width=800",
-                    "alt": item.get("title", topic).replace("File:", "").replace("_", " "),
-                    "caption": item.get("title", topic).replace("File:", "").replace("_", " ")
+                    "url": src,
+                    "alt": f"Reference: {topic}",
+                    "caption": f"Reference diagram — {topic} (only if relevant to your notes)",
+                    "source": "wiki",
                 })
     except Exception as e:
-        print(f"[LUMINA] Commons failed: {e}")
+        print(f"[LUMINA] Wiki image skipped: {e}")
 
-    if len(images) < 3:
-        images += [
-            {"url": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=800", "alt": "Study", "caption": "Academic Study"},
-            {"url": "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?q=80&w=800", "alt": "Books", "caption": "Knowledge"},
-            {"url": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=800", "alt": "Technology", "caption": "Digital Learning"},
-        ]
-    print(f"[LUMINA] Images ready: {len(images)}")
-    return images[:6]
+    print(f"[LUMINA] Images ready: {len(images)} (upload-first, no stock)")
+    return images[:8]
 
 
 def _compress_source(text: str) -> str:
@@ -259,18 +258,19 @@ CRITICAL RULES — FOLLOW EXACTLY:
 1. OUTPUT ONLY STUDY NOTES. ABSOLUTELY NO quiz questions, NO flashcards, NO podcast scripts.
 2. Cover EVERY concept, example, and case study from the source. Be EXTREMELY thorough and comprehensive: write dense, detailed paragraphs explaining concepts fully. Do not write brief high-level summaries.
 3. Use RICH markdown: ## headings, ### sub-headings, **bold** key terms, > blockquotes, tables, bullet lists.
-4. Recreate any graphs, charts, timelines, data distributions, or structural figures described in the source document as beautiful, interactive Mermaid.js diagrams (such as flowchart, gantt, pie, or mindmap) at their exact corresponding sections inside the notes.
-5. Embed at least 3 of the provided IMAGE URLs inline using the exact markdown lines given above to illustrate concepts visually.
-6. NEVER use filler phrases: "in conclusion", "it is important to note", "as mentioned above", "herein".
-7. CLEAR MEANING & EASY VOCABULARY: Define every technical term step-by-step with a plain-English analogy and a clear real-world example on first use. Explain the 'why' and 'how' behind concepts using very simple wording and easy vocabulary, keeping the educative point of view front and center.
-8. Mermaid diagrams MUST use this safe syntax:
+4. For EACH major section, add a Mermaid diagram that matches THAT section only (labeled nodes). Never reuse one generic diagram for the whole document.
+5. IMAGES: Use ONLY the provided IMAGE URLs below. Place each image in the section it belongs to. Add a caption line: *Figure: [what the image shows and how it relates to this section]*. If no images provided, do NOT invent or download random photos — use Mermaid labeled diagrams instead.
+6. When the source describes a figure/chart/diagram, recreate it as Mermaid OR reference the matching uploaded image — never substitute unrelated visuals.
+7. NEVER use filler phrases: "in conclusion", "it is important to note", "as mentioned above", "herein".
+8. CLEAR MEANING & EASY VOCABULARY: Define every technical term step-by-step with a plain-English analogy and a clear real-world example on first use. Explain the 'why' and 'how' behind concepts using very simple wording and easy vocabulary, keeping the educative point of view front and center.
+9. Mermaid diagrams MUST use this safe syntax:
    - Node IDs: simple alphanumeric only (A, B, Node1)
    - Labels: always in double quotes: A["Label Text"]
    - Connectors: A --> B or A -->|"label"| B  (NEVER use --["label"]-->)
    - No special characters (parentheses, braces, brackets) inside node labels, even if double-quoted. (e.g. use A["Step One"] instead of A["Step (1)"])
    - Use style commands at the end of the diagram to style node classes in Royal Blue and Gold theme colors.
-9. If the source material references specific figures, visual charts, or data plots, you MUST summarize the visual data in a comparison table and create a matching Mermaid diagram next to it.
-10. COMPACT CODE SNIPPETS: If code block examples are necessary, make them extremely brief, highly focused on the core concept, and clean (maximum 10-15 lines). Never output long, verbose, or boilerplate-heavy code blocks. Keep code blocks neat, readable, and compact.
+10. If the source material references specific figures, visual charts, or data plots, you MUST summarize the visual data in a comparison table and create a matching Mermaid diagram next to it.
+11. COMPACT CODE SNIPPETS: If code block examples are necessary, make them extremely brief, highly focused on the core concept, and clean (maximum 10-15 lines). Never output long, verbose, or boilerplate-heavy code blocks. Keep code blocks neat, readable, and compact.
 
  
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -396,6 +396,101 @@ Photosynthesis | Process where plants convert sunlight into glucose using carbon
 """
     print("[LUMINA] Generating FLASHCARDS...")
     return _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=3000)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EXAM CRAM — one-page cheat sheet for tomorrow's exam
+# ─────────────────────────────────────────────────────────────────────────────
+def _generate_exam_cram(compressed: str) -> str:
+    prompt = f"""You are an EXAM COACH (not a textbook writer). Output a CRAM SHEET only — radically different from detailed study notes.
+
+SOURCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{compressed}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STRICT STYLE (violations fail the task):
+- MAXIMUM 900 words total.
+- NO paragraph longer than 2 short sentences.
+- NO "In Simple Words", NO long analogies, NO "Deep Insight" blocks.
+- Use bullets, tables, and ONE small Mermaid only.
+- Tone: urgent, exam-hall, high-yield facts only.
+
+STRUCTURE (follow exactly):
+
+# ⚡ EXAM CRAM — [Title]
+
+> **60-sec pitch:** [2 sentences max]
+
+## 🎯 Top 12 Facts (memorize these)
+| # | Term | One-line exam fact | Trap to avoid |
+|---|------|-------------------|---------------|
+(fill 12 rows)
+
+## 🔄 If/Then Quick Rules
+- IF ... THEN ... (6-8 bullets)
+
+## 📐 Mini Diagram (this topic only)
+```mermaid
+flowchart TD
+    A["Input"] --> B["Process"]
+    B --> C["Output"]
+```
+
+## ❓ Professor Will Likely Ask
+1. **Q:** ... → **A:** (max 2 lines)
+2. **Q:** ... → **A:** (max 2 lines)
+3. **Q:** ... → **A:** (max 2 lines)
+4. **Q:** ... → **A:** (max 2 lines)
+5. **Q:** ... → **A:** (max 2 lines)
+
+## 🧠 Mnemonics (3 max)
+- ...
+"""
+    print("[LUMINA] Generating EXAM CRAM...")
+    return _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=5000)
+
+
+def _generate_presentation(compressed: str) -> str:
+    prompt = f"""You are a presentation coach. Create a SPEAKER OUTLINE for presenting this material (NOT study notes, NOT exam cram).
+
+SOURCE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{compressed}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULES:
+- Markdown only. Max 1200 words.
+- Slide-by-slide format. Each slide: title + 3-5 speaker bullets + optional "Say this" one-liner.
+- Include 1 Mermaid diagram for the overall story arc only.
+- No quiz, no flashcards.
+
+FORMAT:
+
+# 🎤 Presentation: [Title]
+
+> **Audience hook (15 sec):** ...
+
+## Slide 1 — [Title]
+- Bullet for speaker
+- Bullet for speaker
+**Say:** "..."
+
+(repeat 8-14 slides)
+
+## Slide [last] — Key Takeaway
+- ...
+
+## 🗺️ Story Arc
+```mermaid
+flowchart LR
+    A["Opening"] --> B["Problem"]
+    B --> C["Solution"]
+    C --> D["Close"]
+```
+"""
+    print("[LUMINA] Generating PRESENTATION...")
+    return _call_cascade([{"role": "user", "content": prompt}], DOC_MODELS, max_tokens=6000)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -551,16 +646,17 @@ class AIService:
         topic: str = "General",
         source_type: str = "document",
         source_url: str = "",
-        generation_type: str = "all"
+        generation_type: str = "all",
+        source_images: List[Dict] = None,
     ) -> dict:
         print(f"[LUMINA] Processing | topic={topic} | type={generation_type} | chars={len(text)}")
 
-        valid_types = {"all", "notes", "quiz", "flashcards", "podcast"}
+        valid_types = {"all", "notes", "quiz", "flashcards", "podcast", "exam_cram", "presentation"}
         if generation_type not in valid_types:
             generation_type = "all"
 
         compressed = _compress_source(text)
-        images = _fetch_educational_images(topic)
+        images = _merge_images_for_notes(compressed, topic, source_images or [])
         image_md = "\n".join([
             f'![{img["alt"]}]({img["url"]})\n*{img["caption"]}*'
             for img in images if img.get("url")
@@ -569,6 +665,8 @@ class AIService:
         result: Dict[str, Any] = {
             "title": topic,
             "simplified_notes": "",
+            "exam_cram_notes": "",
+            "presentation_notes": "",
             "quizzes": [],
             "flashcards": [],
             "roadmap": "",
@@ -580,6 +678,12 @@ class AIService:
         # Define functions for each stage
         def run_notes():
             return _generate_notes(compressed, image_md, images)
+
+        def run_exam_cram():
+            return _generate_exam_cram(compressed)
+
+        def run_presentation():
+            return _generate_presentation(compressed)
 
         def run_quiz():
             return _generate_quiz(compressed)
@@ -593,15 +697,21 @@ class AIService:
         def run_podcast():
             return _generate_podcast(compressed)
 
+        # Fewer parallel jobs on exam_cram to reduce OpenRouter rate-limit hits (free tier)
+        max_workers = 3 if generation_type in ("exam_cram", "presentation") else 5
         futures = {}
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             if generation_type in ("all", "notes"):
                 futures["notes"] = executor.submit(run_notes)
-            if generation_type in ("all", "quiz"):
+            if generation_type in ("all", "exam_cram"):
+                futures["exam_cram"] = executor.submit(run_exam_cram)
+            if generation_type in ("all", "presentation"):
+                futures["presentation"] = executor.submit(run_presentation)
+            if generation_type in ("all", "quiz", "exam_cram"):
                 futures["quiz"] = executor.submit(run_quiz)
-            if generation_type in ("all", "flashcards"):
+            if generation_type in ("all", "flashcards", "exam_cram"):
                 futures["flashcards"] = executor.submit(run_flashcards)
-            if generation_type == "all":
+            if generation_type in ("all", "notes", "exam_cram", "presentation"):
                 futures["diagrams"] = executor.submit(run_diagrams)
             if generation_type in ("all", "podcast"):
                 futures["podcast"] = executor.submit(run_podcast)
@@ -614,11 +724,12 @@ class AIService:
                     result["title"] = notes_data["title"]
                     notes_text = notes_data["simplified_notes"]
 
-                    # Inject images if AI didn't embed enough
-                    if images and notes_text.count("![") < 3:
+                    # Inject uploaded figures only if AI omitted them
+                    upload_imgs = [img for img in images if img.get("source") == "upload"]
+                    if upload_imgs and notes_text.count("![") < len(upload_imgs):
                         inserts = [
-                            f'\n\n![{img["alt"]}]({img["url"]})\n*{img["caption"]}*\n\n'
-                            for img in images[:4] if img.get("url")
+                            f'\n\n![{img["alt"]}]({img["url"]})\n*Figure: {img["caption"]}*\n\n'
+                            for img in upload_imgs[:6] if img.get("url")
                         ]
                         parts = notes_text.split('\n\n')
                         out = []
@@ -658,6 +769,38 @@ class AIService:
                     if "RATE_LIMIT_EXCEEDED" in str(e):
                         raise
                     print(f"[LUMINA] Flashcards failed: {e}")
+
+            if "exam_cram" in futures:
+                try:
+                    cram_raw = futures["exam_cram"].result()
+                    cram_data = _parse_notes(cram_raw)
+                    result["exam_cram_notes"] = cram_data["simplified_notes"]
+                    if generation_type == "exam_cram":
+                        result["simplified_notes"] = result["exam_cram_notes"]
+                        if cram_data.get("title"):
+                            result["title"] = cram_data["title"].replace("⚡ EXAM CRAM —", "").strip() or result["title"]
+                except Exception as e:
+                    if "RATE_LIMIT_EXCEEDED" in str(e):
+                        raise
+                    print(f"[LUMINA] Exam cram failed: {e}")
+                    result["exam_cram_notes"] = f"# Exam Cram: {topic}\n\n> Generation failed. Review your source and try again.\n"
+                    if generation_type == "exam_cram":
+                        result["simplified_notes"] = result["exam_cram_notes"]
+
+            if "presentation" in futures:
+                try:
+                    pres_raw = futures["presentation"].result()
+                    pres_data = _parse_notes(pres_raw)
+                    result["presentation_notes"] = pres_data["simplified_notes"]
+                    if generation_type == "presentation":
+                        result["simplified_notes"] = result["presentation_notes"]
+                except Exception as e:
+                    if "RATE_LIMIT_EXCEEDED" in str(e):
+                        raise
+                    print(f"[LUMINA] Presentation failed: {e}")
+                    result["presentation_notes"] = f"# Presentation: {topic}\n\n> Generation failed. Please try again.\n"
+                    if generation_type == "presentation":
+                        result["simplified_notes"] = result["presentation_notes"]
 
             if "diagrams" in futures:
                 try:

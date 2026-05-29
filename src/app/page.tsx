@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+import React from 'react';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import {
-  Sparkles, Upload, Video, BookOpen, BrainCircuit, Zap, Mic,
-  ArrowRight, Star, Users, TrendingUp, FileText, Heart, Globe,
-  ChevronRight, Play, Layers, Bot, Headphones, Command, Search, Archive
+  Sparkles, BookOpen, BrainCircuit, Zap,
+  ChevronRight, Play, Bot, Headphones, Archive
 } from 'lucide-react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/theme/ThemeToggle';
@@ -52,16 +51,9 @@ const stats = [
 
 /* ── Component ─────────────────────────────────── */
 export default function LandingPage() {
-  const [scrolled, setScrolled] = useState(false);
   const { scrollY } = useScroll();
   const heroOpacity = useTransform(scrollY, [0, 400], [1, 0]);
   const heroScale = useTransform(scrollY, [0, 400], [1, 0.98]);
-
-  useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handler, { passive: true });
-    return () => window.removeEventListener('scroll', handler);
-  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 transition-colors duration-500">
@@ -272,7 +264,7 @@ export default function LandingPage() {
                     </h2>
                  </div>
                  <p className="max-w-md text-muted-foreground leading-relaxed text-lg text-left">
-                    We don't just summarize. We reconstruct your material into a multi-sensory learning experience designed for high-density cognitive retention.
+                    We don&apos;t just summarize. We reconstruct your material into a multi-sensory learning experience designed for high-density cognitive retention.
                  </p>
               </div>
 
