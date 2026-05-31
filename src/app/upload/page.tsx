@@ -19,6 +19,8 @@ import ErrorStateScreen from '@/components/ui/ErrorStateScreen';
 import { useBackendWakeContext } from '@/components/BackendWakeProvider';
 import {
   classifyUploadError,
+  isUploadErrorType,
+  UPLOAD_ERROR_META,
   type UploadErrorType,
 } from '@/lib/uploadErrors';
 
@@ -144,11 +146,21 @@ export default function UploadPage() {
     return iv;
   };
 
+  const clearPreviewParams = () => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('previewError');
+    url.searchParams.delete('previewLoading');
+    const qs = url.searchParams.toString();
+    window.history.replaceState({}, '', qs ? `${url.pathname}?${qs}` : url.pathname);
+  };
+
   const clearError = () => {
     setError(null);
     setErrorType(null);
     setErrorDetail(undefined);
     setIsRetryable(false);
+    clearPreviewParams();
   };
 
   const showError = (type: UploadErrorType, message: string, detail?: string, retryable = false) => {
@@ -157,6 +169,29 @@ export default function UploadPage() {
     setErrorDetail(detail);
     setIsRetryable(retryable);
   };
+
+  // Preview URLs: ?previewLoading=1 | ?previewError=network (etc.)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const previewError = params.get('previewError');
+    const previewLoading = params.get('previewLoading');
+
+    if (isUploadErrorType(previewError)) {
+      if (previewError === 'rate_limit') {
+        setShowLimitModal(true);
+        return;
+      }
+      const retryable = previewError === 'network' || previewError === 'server' || previewError === 'generation_failed';
+      showError(previewError, UPLOAD_ERROR_META[previewError].subtitle, undefined, retryable);
+    }
+
+    if (previewLoading === '1') {
+      setLoading(true);
+      setWakeStatus('waking');
+      setProgress(42);
+      setDynamicStatusText(steps[2]);
+    }
+  }, []);
 
   const handleProcess = async (type: string) => {
     if (loading) return;

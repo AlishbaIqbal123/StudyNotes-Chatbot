@@ -31,6 +31,7 @@ import QuizSection from './QuizSection';
 import GallerySection from './GallerySection';
 import RateLimitModal from './RateLimitModal';
 import ThemeToggle from '@/components/theme/ThemeToggle';
+import NoteViewSkeleton from '@/components/ui/NoteViewSkeleton';
 
 import 'katex/dist/katex.min.css';
 
@@ -469,7 +470,7 @@ export default function NoteView({ id }: { id: string }) {
     }
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-background">Preparing your study session...</div>;
+  if (loading) return <NoteViewSkeleton />;
   if (error || !note) return <div className="h-screen flex items-center justify-center bg-background text-red-500">{error || 'Note not found'}</div>;
 
   // Notes content — strip any quiz/flashcard/podcast sections that may have leaked

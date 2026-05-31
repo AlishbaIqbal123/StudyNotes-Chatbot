@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import PinGridSkeleton from '@/components/ui/PinGridSkeleton';
+import NoteViewSkeleton from '@/components/ui/NoteViewSkeleton';
 
 interface UploadLoadingOverlayProps {
   statusText: string;
@@ -23,26 +23,24 @@ export default function UploadLoadingOverlay({
         : null;
 
   return (
-    <div className="fixed inset-0 z-[200] overflow-y-auto">
-      <div className="absolute inset-0 bg-background/90 backdrop-blur-sm">
-        <div className="p-6 lg:p-10 max-w-[1600px] mx-auto pointer-events-none">
-          <PinGridSkeleton showStats cardCount={12} />
-        </div>
+    <div className="fixed inset-0 z-[200] flex flex-col bg-background overflow-hidden">
+      <div className="flex-1 min-h-0 opacity-90 pointer-events-none">
+        <NoteViewSkeleton />
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-[201] p-4 md:p-6 pointer-events-none">
+      <div className="shrink-0 z-[201] p-4 md:p-6 border-t border-border/50 bg-background/95 backdrop-blur-xl">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-xl mx-auto p-5 md:p-6 rounded-[2rem] bg-card/95 backdrop-blur-xl border border-primary/20 shadow-2xl pointer-events-auto"
+          className="max-w-2xl mx-auto"
         >
-          <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-start justify-between gap-4 mb-3">
             <div className="min-w-0 text-left">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1">
-                Building your study board
+                Building detailed notes
               </p>
               <p
-                className="text-sm md:text-base font-bold text-foreground truncate"
+                className="text-sm md:text-base font-bold text-foreground"
                 style={{ fontFamily: "'Playfair Display', serif" }}
               >
                 {statusText}
@@ -67,7 +65,7 @@ export default function UploadLoadingOverlay({
             />
           </div>
 
-          <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-3 text-center">
+          <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-2 text-center">
             First request after sleep may take up to 60s on free tier
           </p>
         </motion.div>

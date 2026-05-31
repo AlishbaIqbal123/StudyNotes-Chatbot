@@ -4,7 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { RefreshCw, X, ArrowLeft } from 'lucide-react';
 import CursorEyesCartoon from '@/components/ui/CursorEyesCartoon';
-import PinGridSkeleton from '@/components/ui/PinGridSkeleton';
+import NoteViewSkeleton from '@/components/ui/NoteViewSkeleton';
 import {
   UPLOAD_ERROR_META,
   type UploadErrorType,
@@ -33,18 +33,16 @@ export default function ErrorStateScreen({
   const displayMessage = message || meta.subtitle;
 
   return (
-    <div className="fixed inset-0 z-[210] overflow-y-auto">
-      <div className="absolute inset-0 bg-background/95 backdrop-blur-md">
-        <div className="opacity-40 pointer-events-none p-6 lg:p-10 max-w-[1600px] mx-auto">
-          <PinGridSkeleton showStats={false} cardCount={8} />
-        </div>
+    <div className="fixed inset-0 z-[210] flex flex-col bg-background overflow-hidden">
+      <div className="flex-1 min-h-0 opacity-35 pointer-events-none">
+        <NoteViewSkeleton />
       </div>
 
-      <div className="relative min-h-screen flex items-center justify-center p-6">
+      <div className="absolute inset-0 flex items-center justify-center p-6 bg-background/40 backdrop-blur-[2px]">
         <motion.div
           initial={{ opacity: 0, y: 24, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          className="relative w-full max-w-md p-8 md:p-10 rounded-[2.5rem] bg-card/90 backdrop-blur-xl border border-border shadow-2xl text-center"
+          className="relative w-full max-w-md p-8 md:p-10 rounded-[2.5rem] bg-card/95 backdrop-blur-xl border border-border shadow-2xl text-center"
         >
           {onDismiss && (
             <button

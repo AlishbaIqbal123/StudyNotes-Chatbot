@@ -9,6 +9,22 @@ export type UploadErrorType =
   | 'generation_failed'
   | 'unknown';
 
+export const UPLOAD_ERROR_TYPES: UploadErrorType[] = [
+  'network',
+  'server',
+  'rate_limit',
+  'transcript',
+  'content_too_short',
+  'file_too_large',
+  'validation',
+  'generation_failed',
+  'unknown',
+];
+
+export function isUploadErrorType(value: string | null): value is UploadErrorType {
+  return !!value && UPLOAD_ERROR_TYPES.includes(value as UploadErrorType);
+}
+
 export interface ClassifiedUploadError {
   type: UploadErrorType;
   message: string;
