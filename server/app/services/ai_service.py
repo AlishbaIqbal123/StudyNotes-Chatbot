@@ -36,11 +36,12 @@ VALID_MERMAID_KEYWORDS = (
 )
 
 
-class AIServiceError(Exception):
-    pass
+def _reraise_if_quota(e: Exception) -> None:
+    err = str(e)
+    if any(x in err for x in ("RATE_LIMIT_429", "RATE_LIMIT_EXCEEDED", "PAYMENT_REQUIRED_402", "402")):
+        raise AIServiceError("RATE_LIMIT_EXCEEDED: OpenRouter free tier quota exhausted") from e
 
 
-def _validate_mermaid(diagram: str) -> str:
     clean = diagram.strip()
     if not clean:
         return ""
@@ -697,8 +698,13 @@ class AIService:
         def run_podcast():
             return _generate_podcast(compressed)
 
-        # Fewer parallel jobs on exam_cram to reduce OpenRouter rate-limit hits (free tier)
-        max_workers = 3 if generation_type in ("exam_cram", "presentation") else 5
+        # Fewer parallel jobs on free tier — "all" fires 7 calls; limit concurrency to reduce 429s
+        if generation_type == "all":
+            max_workers = 2
+        elif generation_type in ("exam_cram", "presentation"):
+            max_workers = 2
+        else:
+            max_workers = 3
         futures = {}
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             if generation_type in ("all", "notes"):
@@ -745,6 +751,7 @@ class AIService:
 
                     result["simplified_notes"] = notes_text
                 except Exception as e:
+                    _reraise_if_quota(e)
                     if "RATE_LIMIT_EXCEEDED" in str(e):
                         raise
                     print(f"[LUMINA] Notes failed: {e}")
@@ -756,6 +763,7 @@ class AIService:
                     result["quizzes"] = _parse_quiz(quiz_raw)
                     print(f"[LUMINA] Quiz parsed: {len(result['quizzes'])} questions")
                 except Exception as e:
+                    _reraise_if_quota(e)
                     if "RATE_LIMIT_EXCEEDED" in str(e):
                         raise
                     print(f"[LUMINA] Quiz failed: {e}")
@@ -766,6 +774,7 @@ class AIService:
                     result["flashcards"] = _parse_flashcards(fc_raw)
                     print(f"[LUMINA] Flashcards parsed: {len(result['flashcards'])} cards")
                 except Exception as e:
+                    _reraise_if_quota(e)
                     if "RATE_LIMIT_EXCEEDED" in str(e):
                         raise
                     print(f"[LUMINA] Flashcards failed: {e}")
@@ -780,6 +789,7 @@ class AIService:
                         if cram_data.get("title"):
                             result["title"] = cram_data["title"].replace("⚡ EXAM CRAM —", "").strip() or result["title"]
                 except Exception as e:
+                    _reraise_if_quota(e)
                     if "RATE_LIMIT_EXCEEDED" in str(e):
                         raise
                     print(f"[LUMINA] Exam cram failed: {e}")
@@ -795,6 +805,7 @@ class AIService:
                     if generation_type == "presentation":
                         result["simplified_notes"] = result["presentation_notes"]
                 except Exception as e:
+                    _reraise_if_quota(e)
                     if "RATE_LIMIT_EXCEEDED" in str(e):
                         raise
                     print(f"[LUMINA] Presentation failed: {e}")
@@ -809,6 +820,7 @@ class AIService:
                     result["roadmap"] = diag_data["roadmap"]
                     result["mind_map"] = diag_data["mind_map"]
                 except Exception as e:
+                    _reraise_if_quota(e)
                     if "RATE_LIMIT_EXCEEDED" in str(e):
                         raise
                     print(f"[LUMINA] Diagrams failed: {e}")
@@ -818,6 +830,7 @@ class AIService:
                     pod_raw = futures["podcast"].result()
                     result["podcast_script"] = _parse_podcast(pod_raw)
                 except Exception as e:
+                    _reraise_if_quota(e)
                     if "RATE_LIMIT_EXCEEDED" in str(e):
                         raise
                     print(f"[LUMINA] Podcast failed: {e}")

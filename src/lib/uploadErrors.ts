@@ -115,8 +115,8 @@ export const UPLOAD_ERROR_META: Record<
     mood: 'sleepy',
   },
   rate_limit: {
-    title: 'Daily limit reached',
-    subtitle: 'OpenRouter free tier needs a short breather. Wait ~60s or use your existing notes.',
+    title: 'Generation limit reached',
+    subtitle: 'Free tier needs a short breather. Wait ~60s or upgrade credits.',
     mood: 'confused',
   },
   transcript: {

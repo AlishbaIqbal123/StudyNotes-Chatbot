@@ -59,6 +59,16 @@ export default function NoteView({ id }: { id: string }) {
   const [isRightDrawerOpen, setIsRightDrawerOpen] = useState(false);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('limitReached') === '1') {
+      setIsRateLimitOpen(true);
+      params.delete('limitReached');
+      const qs = params.toString();
+      window.history.replaceState({}, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     const handleResize = () => {
       const isMobile = window.innerWidth < 1024;
       setIsMobileOrTablet(isMobile);
@@ -507,7 +517,7 @@ export default function NoteView({ id }: { id: string }) {
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans">
-      <RateLimitModal isOpen={isRateLimitOpen} onClose={() => setIsRateLimitOpen(false)} upgradeUrl="https://openrouter.ai/credits" />
+      <RateLimitModal isOpen={isRateLimitOpen} onClose={() => setIsRateLimitOpen(false)} />
 
       {/* Backdrop for mobile drawers */}
       {isMobileOrTablet && (isLeftDrawerOpen || isRightDrawerOpen) && (
@@ -658,6 +668,19 @@ export default function NoteView({ id }: { id: string }) {
                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Study Session</span>
               </div>
               <h1 className="text-4xl lg:text-6xl font-black tracking-tight leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>{note.title}</h1>
+              {notesContent.includes('Notes generation failed') && (
+                <div className="mt-6 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-sm text-amber-900 dark:text-amber-200">
+                  <p className="font-bold mb-1">Partial generation — free tier limit hit</p>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Detailed notes, quiz, flashcards, and diagrams may be missing. Exam cram and presentation tabs may still have content.
+                    Wait for the timer or{' '}
+                    <button type="button" onClick={() => setIsRateLimitOpen(true)} className="underline font-bold text-primary hover:opacity-80">
+                      upgrade credits
+                    </button>
+                    {' '}to run a full synthesis again.
+                  </p>
+                </div>
+              )}
             </motion.div>
 
             <AnimatePresence mode="wait">

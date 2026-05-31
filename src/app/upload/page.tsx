@@ -257,13 +257,16 @@ export default function UploadPage() {
       const responseData = response?.data ?? response;
 
       if (responseData && responseData.status === 'completed') {
+        const notesBody = responseData.simplified_content || responseData.simplified_notes || '';
+        const notesFailed = notesBody.includes('Notes generation failed');
         const noteData = {
           ...responseData,
+          simplified_notes: notesBody,
           userId: user?.id || 'guest',
           createdAt: new Date().toISOString(),
           source_type: type,
           source_text: responseData.source_text || responseData.raw_text || '',
-          status: 'completed',
+          status: notesFailed ? 'partial' : 'completed',
         };
 
         let noteId: string;
@@ -280,7 +283,12 @@ export default function UploadPage() {
           localStorage.setItem('lumina_guest_gen_count', (currentCount + 1).toString());
         }
 
-        setTimeout(() => router.push(`/notes?id=${noteId}`), 800);
+        if (notesFailed) {
+          localStorage.setItem('lumina_rate_limit_ts', String(Date.now() + 3600000));
+          setTimeout(() => router.push(`/notes?id=${noteId}&limitReached=1`), 800);
+        } else {
+          setTimeout(() => router.push(`/notes?id=${noteId}`), 800);
+        }
       } else {
         throw Object.assign(new Error(responseData?.detail || 'Generation failed. Please try again.'), { _generation: true });
       }

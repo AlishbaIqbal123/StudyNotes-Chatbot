@@ -129,6 +129,15 @@ async def process_content(
 
     except HTTPException:
         raise
+    except AIServiceError as e:
+        err = str(e)
+        if "RATE_LIMIT" in err or "429" in err or "402" in err:
+            raise HTTPException(
+                status_code=429,
+                detail="Generation quota exceeded. Wait for the timer or upgrade credits.",
+            )
+        print(f"[/process] AI error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         print(f"[/process] Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
