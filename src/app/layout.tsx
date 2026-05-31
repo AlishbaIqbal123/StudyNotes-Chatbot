@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
-import BackendWakeProvider from '@/components/BackendWakeProvider';
+import { BackendWakeProvider } from '@/components/BackendWakeProvider';
 
 export const metadata: Metadata = {
   title: 'LuminaStudy | AI-Powered Pinterest-Style Study Platform',
