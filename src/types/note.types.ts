@@ -28,6 +28,9 @@ export interface NoteData {
   source_type?: string;
   raw_text?: string;
   timestamp?: unknown;
+  status?: string;
+  isGuest?: boolean;
+  generation_status?: import('@/lib/generationStatus').GenerationStatusReport;
 }
 
 export interface ChatMessage {

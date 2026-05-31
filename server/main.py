@@ -112,8 +112,11 @@ async def process_content(
             source_images=source_figures,
         )
 
+        gs = processed.get("generation_status") or {}
+        overall = gs.get("overall", "completed")
+
         return {
-            "status": "completed",
+            "status": overall if overall in ("partial", "quota_exceeded", "failed") else "completed",
             "title": processed.get("title", topic),
             "simplified_content": processed.get("simplified_notes", ""),
             "quizzes": processed.get("quizzes", []),
@@ -124,7 +127,9 @@ async def process_content(
             "visual_prompt": processed.get("visual_prompt", ""),
             "exam_cram_notes": processed.get("exam_cram_notes", ""),
             "presentation_notes": processed.get("presentation_notes", ""),
-            "raw_text": raw_text[:2000],
+            "generation_status": gs,
+            "raw_text": raw_text[:12000],
+            "source_text": raw_text[:12000],
         }
 
     except HTTPException:
@@ -143,6 +148,16 @@ async def process_content(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _http_error_from_ai(e: Exception) -> HTTPException:
+    err = str(e)
+    if "RATE_LIMIT" in err or "429" in err or "402" in err:
+        return HTTPException(
+            status_code=429,
+            detail="Generation quota exceeded. Wait for the timer or upgrade credits.",
+        )
+    return HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/generate-more-quiz")
 async def generate_more_quiz(
     source_text: str = Form(...),
@@ -155,6 +170,8 @@ async def generate_more_quiz(
             AIService.generate_more_quiz, source_text, existing_list
         )
         return {"questions": questions}
+    except AIServiceError as e:
+        raise _http_error_from_ai(e)
     except Exception as e:
         print(f"[/generate-more-quiz] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -172,6 +189,8 @@ async def generate_more_flashcards(
             AIService.generate_more_flashcards, source_text, existing_list
         )
         return {"flashcards": cards}
+    except AIServiceError as e:
+        raise _http_error_from_ai(e)
     except Exception as e:
         print(f"[/generate-more-flashcards] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -202,5 +221,7 @@ async def chat_with_ai(
                 "X-Accel-Buffering": "no",
             }
         )
+    except AIServiceError as e:
+        raise _http_error_from_ai(e)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -46,6 +46,149 @@ def _reraise_if_quota(e: Exception) -> None:
         raise AIServiceError("RATE_LIMIT_EXCEEDED: OpenRouter free tier quota exhausted") from e
 
 
+def _is_quota_error(e: Exception) -> bool:
+    err = str(e)
+    return any(x in err for x in ("RATE_LIMIT_429", "RATE_LIMIT_EXCEEDED", "PAYMENT_REQUIRED_402", "402"))
+
+
+def _mark_section_error(sections: Dict[str, Any], key: str, e: Exception) -> bool:
+    """Record section failure. Returns True if quota-related."""
+    if _is_quota_error(e) or "RATE_LIMIT_EXCEEDED" in str(e):
+        sections[key] = {"status": "quota_exceeded", "message": "Generation credits exhausted for this section"}
+        return True
+    sections[key] = {"status": "failed", "message": str(e)[:140]}
+    return False
+
+
+def _mark_section_ok(sections: Dict[str, Any], key: str) -> None:
+    sections[key] = {"status": "complete"}
+
+
+def _content_ok_notes(text: str) -> bool:
+    if not text or len(text.strip()) < 80:
+        return False
+    return "Notes generation failed" not in text and "Generation failed" not in text
+
+
+def _build_generation_status(
+    result: Dict[str, Any],
+    sections: Dict[str, Any],
+    generation_type: str,
+    quota_hit: bool,
+) -> Dict[str, Any]:
+    labels = {
+        "notes": "Detailed Notes",
+        "exam_cram": "Exam Cram Sheet",
+        "presentation": "Presentation Outline",
+        "quiz": "Knowledge Quiz",
+        "flashcards": "Flashcard Deck",
+        "roadmap": "Study Roadmap",
+        "mind_map": "Concept Mind Map",
+        "podcast": "Audio Lab Script",
+    }
+    regen = {
+        "notes": "notes",
+        "exam_cram": "exam_cram",
+        "presentation": "presentation",
+        "quiz": "quiz",
+        "flashcards": "flashcards",
+        "roadmap": "diagrams",
+        "mind_map": "diagrams",
+        "podcast": "podcast",
+    }
+
+    # Verify content for sections not explicitly tracked
+    checks = {
+        "notes": _content_ok_notes(result.get("simplified_notes", "")),
+        "exam_cram": bool(result.get("exam_cram_notes", "").strip()) and "Generation failed" not in result.get("exam_cram_notes", ""),
+        "presentation": bool(result.get("presentation_notes", "").strip()) and "Generation failed" not in result.get("presentation_notes", ""),
+        "quiz": len(result.get("quizzes") or []) > 0,
+        "flashcards": len(result.get("flashcards") or []) > 0,
+        "roadmap": bool(result.get("roadmap", "").strip()),
+        "mind_map": bool(result.get("mind_map", "").strip()),
+        "podcast": bool(result.get("podcast_script", "").strip()),
+    }
+
+    requested = []
+    if generation_type == "all":
+        requested = list(labels.keys())
+    elif generation_type == "diagrams":
+        requested = ["roadmap", "mind_map"]
+    elif generation_type == "exam_cram":
+        requested = ["exam_cram", "quiz", "flashcards", "roadmap", "mind_map"]
+    else:
+        requested = [generation_type] if generation_type in labels else ["notes"]
+
+    out_sections: Dict[str, Any] = {}
+    completed = 0
+    for key in labels:
+        if key not in requested:
+            out_sections[key] = {
+                "status": "skipped",
+                "label": labels[key],
+                "regenerateType": regen[key],
+            }
+            continue
+        entry = sections.get(key, {})
+        status = entry.get("status")
+        if status == "complete" or (not status and checks.get(key)):
+            out_sections[key] = {"status": "complete", "label": labels[key], "regenerateType": regen[key]}
+            completed += 1
+        elif status == "quota_exceeded":
+            out_sections[key] = {
+                "status": "quota_exceeded",
+                "label": labels[key],
+                "regenerateType": regen[key],
+                "message": entry.get("message", "Credits exhausted"),
+            }
+        elif status == "failed":
+            out_sections[key] = {
+                "status": "failed",
+                "label": labels[key],
+                "regenerateType": regen[key],
+                "message": entry.get("message", "Generation error"),
+            }
+        elif checks.get(key):
+            out_sections[key] = {"status": "complete", "label": labels[key], "regenerateType": regen[key]}
+            completed += 1
+        else:
+            out_sections[key] = {
+                "status": "missing",
+                "label": labels[key],
+                "regenerateType": regen[key],
+                "message": "Not generated",
+            }
+
+    total = len(requested)
+    if completed >= total:
+        overall = "completed"
+    elif completed == 0 and quota_hit:
+        overall = "quota_exceeded"
+    elif completed == 0:
+        overall = "failed"
+    else:
+        overall = "partial"
+
+    summary = (
+        f"All {total} study sections generated successfully."
+        if overall == "completed"
+        else (
+            f"{completed} of {total} sections ready — generation credits ran out before the rest could finish."
+            if quota_hit
+            else f"{completed} of {total} sections generated. Missing sections can be regenerated separately."
+        )
+    )
+
+    return {
+        "overall": overall,
+        "completedCount": completed,
+        "totalRequested": total,
+        "quotaExceeded": quota_hit,
+        "sections": out_sections,
+        "summary": summary,
+    }
+
+
 def _validate_mermaid(diagram: str) -> str:
     clean = diagram.strip()
     if not clean:
@@ -130,6 +273,10 @@ def _stream_openrouter(messages: List[Dict], model: str):
     print(f"[LUMINA] Stream calling {model}")
     try:
         r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=120, stream=True)
+        if r.status_code == 429:
+            raise AIServiceError("RATE_LIMIT_429")
+        if r.status_code == 402:
+            raise AIServiceError("PAYMENT_REQUIRED_402")
         if r.status_code != 200:
             raise AIServiceError(f"HTTP_ERROR_{r.status_code}")
         for line in r.iter_lines():
@@ -171,7 +318,10 @@ def _stream_cascade(messages: List[Dict], models: List[str]):
             print(f"[LUMINA] Stream model {model} failed ({str(e)[:60]}), trying next...")
             last_error = e
             continue
-    yield f"data: {json.dumps({'error': 'COMMUNICATION_ERROR', 'message': str(last_error)})}\n\n"
+    if last_error and _is_quota_error(last_error):
+        yield f"data: {json.dumps({'error': 'RATE_LIMIT_REACHED'})}\n\n"
+    else:
+        yield f"data: {json.dumps({'error': 'COMMUNICATION_ERROR', 'message': str(last_error)})}\n\n"
 
 
 def _merge_images_for_notes(compressed: str, topic: str, source_images: List[Dict]) -> List[Dict]:
@@ -657,7 +807,7 @@ class AIService:
     ) -> dict:
         print(f"[LUMINA] Processing | topic={topic} | type={generation_type} | chars={len(text)}")
 
-        valid_types = {"all", "notes", "quiz", "flashcards", "podcast", "exam_cram", "presentation"}
+        valid_types = {"all", "notes", "quiz", "flashcards", "podcast", "exam_cram", "presentation", "diagrams"}
         if generation_type not in valid_types:
             generation_type = "all"
 
@@ -680,6 +830,8 @@ class AIService:
             "podcast_script": "",
             "visual_prompt": ""
         }
+        section_status: Dict[str, Any] = {}
+        quota_hit = False
 
         # Define functions for each stage
         def run_notes():
@@ -722,7 +874,7 @@ class AIService:
                 futures["quiz"] = executor.submit(run_quiz)
             if generation_type in ("all", "flashcards", "exam_cram"):
                 futures["flashcards"] = executor.submit(run_flashcards)
-            if generation_type in ("all", "notes", "exam_cram", "presentation"):
+            if generation_type in ("all", "notes", "exam_cram", "presentation", "diagrams"):
                 futures["diagrams"] = executor.submit(run_diagrams)
             if generation_type in ("all", "podcast"):
                 futures["podcast"] = executor.submit(run_podcast)
@@ -755,22 +907,22 @@ class AIService:
                         notes_text = '\n\n'.join(out)
 
                     result["simplified_notes"] = notes_text
+                    _mark_section_ok(section_status, "notes")
                 except Exception as e:
-                    _reraise_if_quota(e)
-                    if "RATE_LIMIT_EXCEEDED" in str(e):
-                        raise
+                    if _mark_section_error(section_status, "notes", e):
+                        quota_hit = True
                     print(f"[LUMINA] Notes failed: {e}")
-                    result["simplified_notes"] = f"# {topic}\n\n> Notes generation failed. Please try again.\n\n{text[:2000]}"
+                    result["simplified_notes"] = ""
 
             if "quiz" in futures:
                 try:
                     quiz_raw = futures["quiz"].result()
                     result["quizzes"] = _parse_quiz(quiz_raw)
                     print(f"[LUMINA] Quiz parsed: {len(result['quizzes'])} questions")
+                    _mark_section_ok(section_status, "quiz")
                 except Exception as e:
-                    _reraise_if_quota(e)
-                    if "RATE_LIMIT_EXCEEDED" in str(e):
-                        raise
+                    if _mark_section_error(section_status, "quiz", e):
+                        quota_hit = True
                     print(f"[LUMINA] Quiz failed: {e}")
 
             if "flashcards" in futures:
@@ -778,10 +930,10 @@ class AIService:
                     fc_raw = futures["flashcards"].result()
                     result["flashcards"] = _parse_flashcards(fc_raw)
                     print(f"[LUMINA] Flashcards parsed: {len(result['flashcards'])} cards")
+                    _mark_section_ok(section_status, "flashcards")
                 except Exception as e:
-                    _reraise_if_quota(e)
-                    if "RATE_LIMIT_EXCEEDED" in str(e):
-                        raise
+                    if _mark_section_error(section_status, "flashcards", e):
+                        quota_hit = True
                     print(f"[LUMINA] Flashcards failed: {e}")
 
             if "exam_cram" in futures:
@@ -793,14 +945,13 @@ class AIService:
                         result["simplified_notes"] = result["exam_cram_notes"]
                         if cram_data.get("title"):
                             result["title"] = cram_data["title"].replace("⚡ EXAM CRAM —", "").strip() or result["title"]
+                    _mark_section_ok(section_status, "exam_cram")
                 except Exception as e:
-                    _reraise_if_quota(e)
-                    if "RATE_LIMIT_EXCEEDED" in str(e):
-                        raise
+                    if _mark_section_error(section_status, "exam_cram", e):
+                        quota_hit = True
                     print(f"[LUMINA] Exam cram failed: {e}")
-                    result["exam_cram_notes"] = f"# Exam Cram: {topic}\n\n> Generation failed. Review your source and try again.\n"
                     if generation_type == "exam_cram":
-                        result["simplified_notes"] = result["exam_cram_notes"]
+                        result["simplified_notes"] = ""
 
             if "presentation" in futures:
                 try:
@@ -809,14 +960,13 @@ class AIService:
                     result["presentation_notes"] = pres_data["simplified_notes"]
                     if generation_type == "presentation":
                         result["simplified_notes"] = result["presentation_notes"]
+                    _mark_section_ok(section_status, "presentation")
                 except Exception as e:
-                    _reraise_if_quota(e)
-                    if "RATE_LIMIT_EXCEEDED" in str(e):
-                        raise
+                    if _mark_section_error(section_status, "presentation", e):
+                        quota_hit = True
                     print(f"[LUMINA] Presentation failed: {e}")
-                    result["presentation_notes"] = f"# Presentation: {topic}\n\n> Generation failed. Please try again.\n"
                     if generation_type == "presentation":
-                        result["simplified_notes"] = result["presentation_notes"]
+                        result["simplified_notes"] = ""
 
             if "diagrams" in futures:
                 try:
@@ -824,23 +974,32 @@ class AIService:
                     diag_data = _parse_diagrams(diag_raw)
                     result["roadmap"] = diag_data["roadmap"]
                     result["mind_map"] = diag_data["mind_map"]
+                    if result["roadmap"]:
+                        _mark_section_ok(section_status, "roadmap")
+                    if result["mind_map"]:
+                        _mark_section_ok(section_status, "mind_map")
                 except Exception as e:
-                    _reraise_if_quota(e)
-                    if "RATE_LIMIT_EXCEEDED" in str(e):
-                        raise
+                    q = _mark_section_error(section_status, "roadmap", e)
+                    _mark_section_error(section_status, "mind_map", e)
+                    if q:
+                        quota_hit = True
                     print(f"[LUMINA] Diagrams failed: {e}")
 
             if "podcast" in futures:
                 try:
                     pod_raw = futures["podcast"].result()
                     result["podcast_script"] = _parse_podcast(pod_raw)
+                    _mark_section_ok(section_status, "podcast")
                 except Exception as e:
-                    _reraise_if_quota(e)
-                    if "RATE_LIMIT_EXCEEDED" in str(e):
-                        raise
+                    if _mark_section_error(section_status, "podcast", e):
+                        quota_hit = True
                     print(f"[LUMINA] Podcast failed: {e}")
 
-        print(f"[LUMINA] DONE | notes={len(result['simplified_notes'])}c | quiz={len(result['quizzes'])} | cards={len(result['flashcards'])}")
+        result["generation_status"] = _build_generation_status(result, section_status, generation_type, quota_hit)
+        if quota_hit and result["generation_status"]["completedCount"] == 0:
+            raise AIServiceError("RATE_LIMIT_EXCEEDED: OpenRouter free tier quota exhausted")
+
+        print(f"[LUMINA] DONE | notes={len(result['simplified_notes'])}c | quiz={len(result['quizzes'])} | cards={len(result['flashcards'])} | status={result['generation_status']['overall']}")
         return result
 
     @staticmethod

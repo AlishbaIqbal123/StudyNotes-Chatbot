@@ -10,6 +10,7 @@ import {
   Presentation,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -30,16 +31,27 @@ import {
 import QuizSection from './QuizSection';
 import GallerySection from './GallerySection';
 import RateLimitModal from './RateLimitModal';
+import GenerationStatusPanel from './GenerationStatusPanel';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import NoteViewSkeleton from '@/components/ui/NoteViewSkeleton';
+import { studyApi } from '@/lib/api';
+import { persistNoteUpdate } from '@/lib/persistNote';
+import {
+  inferGenerationStatus,
+  markQuotaLimitReached,
+  type GenerationStatusReport,
+  type SectionKey,
+} from '@/lib/generationStatus';
+import { handleApiIssue } from '@/lib/apiErrors';
+import { SECTION_META } from '@/lib/generationStatus';
 
 import 'katex/dist/katex.min.css';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://Alishba-1342-lumina-backend.hf.space';
 type TabType = 'notes' | 'exam_cram' | 'presentation' | 'roadmap' | 'mindmap' | 'quiz' | 'flashcards' | 'podcast' | 'gallery';
 type ReaderMode = 'study' | 'cram' | 'present';
 
 export default function NoteView({ id }: { id: string }) {
+  const router = useRouter();
   const { note, loading, error, setNote } = useNoteData(id);
   const { history, loading: chatLoading, sendMessage } = useChatHistory(note?.simplified_notes || note?.simplified_content || '');
   const { width: sidebarWidth, startResizing } = useResizableSidebar(288, 200, 480);
@@ -50,6 +62,9 @@ export default function NoteView({ id }: { id: string }) {
   const [chatHighlight, setChatHighlight] = useState(false);
   const [chatPrompt, setChatPrompt] = useState('');
   const [isRateLimitOpen, setIsRateLimitOpen] = useState(false);
+  const [generationReport, setGenerationReport] = useState<GenerationStatusReport | null>(null);
+  const [regeneratingKey, setRegeneratingKey] = useState<SectionKey | null>(null);
+  const [apiNotice, setApiNotice] = useState<{ title: string; hint: string } | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const proseRef = useRef<HTMLDivElement>(null);
   const pendingExcerptRef = useRef<string | undefined>(undefined);
@@ -67,6 +82,16 @@ export default function NoteView({ id }: { id: string }) {
       window.history.replaceState({}, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
     }
   }, []);
+
+  useEffect(() => {
+    if (!note) return;
+    setGenerationReport(
+      inferGenerationStatus(
+        note as unknown as Record<string, unknown>,
+        note.generation_status ?? null
+      )
+    );
+  }, [note]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -356,6 +381,11 @@ export default function NoteView({ id }: { id: string }) {
     }
   }, [])
 
+  const openQuotaModal = () => {
+    markQuotaLimitReached();
+    setIsRateLimitOpen(true);
+  };
+
   const handleSendMessage = async (override?: string) => {
     const text = (override || chatPrompt).trim();
     if (!text) return;
@@ -363,63 +393,108 @@ export default function NoteView({ id }: { id: string }) {
     pendingExcerptRef.current = undefined;
     if (override) focusChat(text);
     const res = await sendMessage(text, excerpt ? { excerpt } : undefined);
-    if (res.error === "RATE_LIMIT_REACHED") setIsRateLimitOpen(true);
+    if (res.error === "RATE_LIMIT_REACHED") {
+      openQuotaModal();
+    }
     if (!override) setChatPrompt('');
+  };
+
+  const getSourceText = () =>
+    note?.source_text ||
+    note?.raw_text ||
+    note?.simplified_content?.slice(0, 12000) ||
+    note?.simplified_notes?.slice(0, 12000) ||
+    '';
+
+  const handleRegenerateSection = async (key: SectionKey, regenerateType: string) => {
+    if (!note || regeneratingKey) return;
+    const sourceText = getSourceText();
+    if (sourceText.trim().length < 50) {
+      setApiNotice({
+        title: 'Source text unavailable',
+        hint: 'This note does not have enough saved source text to regenerate sections. Re-upload the original material to continue.',
+      });
+      return;
+    }
+    setRegeneratingKey(key);
+    try {
+      const res = await studyApi.processText(sourceText, regenerateType);
+      const data = (res?.data ?? res) as Record<string, unknown>;
+
+      if (!data || data.status === 'failed') {
+        throw new Error(String(data.detail || 'Section regeneration failed'));
+      }
+
+      const patch: Record<string, unknown> = {
+        simplified_notes: data.simplified_content || data.simplified_notes || note.simplified_notes,
+        exam_cram_notes: data.exam_cram_notes ?? note.exam_cram_notes,
+        presentation_notes: data.presentation_notes ?? note.presentation_notes,
+        quizzes: data.quizzes ?? note.quizzes,
+        flashcards: data.flashcards ?? note.flashcards,
+        roadmap: data.roadmap ?? note.roadmap,
+        mind_map: data.mind_map ?? note.mind_map,
+        podcast_script: data.podcast_script ?? note.podcast_script,
+      };
+
+      const gs = inferGenerationStatus(
+        { ...note, ...patch } as Record<string, unknown>,
+        (data.generation_status as GenerationStatusReport) ?? null
+      );
+      patch.generation_status = gs;
+      patch.status = gs.overall === 'completed' ? 'completed' : 'partial';
+
+      const isGuest = id.startsWith('guest_') || !!note.isGuest;
+      await persistNoteUpdate(id, patch, isGuest);
+      setNote((prev) => (prev ? { ...prev, ...patch } as typeof prev : null));
+      setGenerationReport(gs);
+
+      const tab = SECTION_META[key].tab;
+      if (tab) setActiveTab(tab as TabType);
+    } catch (err) {
+      handleApiIssue(err, {
+        onQuota: () => openQuotaModal(),
+        onError: (apiErr) =>
+          setApiNotice({ title: apiErr.userTitle, hint: apiErr.userHint }),
+      });
+    } finally {
+      setRegeneratingKey(null);
+    }
   };
 
   const handleGenerateMoreFlashcards = async () => {
     if (generatingCards) return;
     setGeneratingCards(true);
+    setApiNotice(null);
     try {
-      // Get source text — try multiple fields
       const sourceText =
         note?.raw_text ||
         note?.source_text ||
         note?.simplified_content?.slice(0, 6000) ||
         note?.simplified_notes?.slice(0, 6000) ||
-        note?.title ||
-        "";
+        '';
 
       if (!sourceText || sourceText.trim().length < 10) {
-        console.error("No source text available for flashcard generation");
-        return;
-      }
-
-      // MUST use FormData — backend expects Form fields not JSON
-      const formData = new FormData();
-      formData.append("source_text", sourceText);
-      formData.append(
-        "existing_cards",
-        JSON.stringify(note?.flashcards || [])
-      );
-
-      const res = await fetch(
-        `${API_BASE_URL}/generate-more-flashcards`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error(`Server error ${res.status}:`, errorText);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (data.flashcards && data.flashcards.length > 0) {
-        setNote((prev) => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            flashcards: [...(prev.flashcards || []), ...data.flashcards],
-          };
+        setApiNotice({
+          title: 'Cannot generate flashcards',
+          hint: 'This note needs saved source text. Re-upload your material to add more cards.',
         });
+        return;
+      }
+
+      const res = await studyApi.generateMoreFlashcards(sourceText, note?.flashcards || []);
+      const data = res.data;
+
+      if (data.flashcards?.length > 0) {
+        setNote((prev) =>
+          prev ? { ...prev, flashcards: [...(prev.flashcards || []), ...data.flashcards] } : null
+        );
       }
     } catch (err) {
-      console.error("Failed to generate more flashcards:", err);
+      handleApiIssue(err, {
+        onQuota: () => openQuotaModal(),
+        onError: (apiErr) =>
+          setApiNotice({ title: apiErr.userTitle, hint: apiErr.userHint }),
+      });
     } finally {
       setGeneratingCards(false);
     }
@@ -428,53 +503,37 @@ export default function NoteView({ id }: { id: string }) {
   const handleGenerateMoreQuiz = async () => {
     if (generatingQuiz) return;
     setGeneratingQuiz(true);
+    setApiNotice(null);
     try {
       const sourceText =
         note?.raw_text ||
         note?.source_text ||
         note?.simplified_content?.slice(0, 6000) ||
         note?.simplified_notes?.slice(0, 6000) ||
-        "";
+        '';
 
       if (!sourceText || sourceText.trim().length < 10) {
-        console.error("No source text available");
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("source_text", sourceText);
-      formData.append(
-        "existing_questions",
-        JSON.stringify(note?.quizzes || [])
-      );
-
-      const res = await fetch(
-        `${API_BASE_URL}/generate-more-quiz`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error(`Server error ${res.status}:`, errorText);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (data.questions && data.questions.length > 0) {
-        setNote((prev) => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            quizzes: [...(prev.quizzes || []), ...data.questions],
-          };
+        setApiNotice({
+          title: 'Cannot generate quiz questions',
+          hint: 'This note needs saved source text. Re-upload your material to add more questions.',
         });
+        return;
+      }
+
+      const res = await studyApi.generateMoreQuiz(sourceText, note?.quizzes || []);
+      const data = res.data;
+
+      if (data.questions?.length > 0) {
+        setNote((prev) =>
+          prev ? { ...prev, quizzes: [...(prev.quizzes || []), ...data.questions] } : null
+        );
       }
     } catch (err) {
-      console.error("Failed to generate more quiz questions:", err);
+      handleApiIssue(err, {
+        onQuota: () => openQuotaModal(),
+        onError: (apiErr) =>
+          setApiNotice({ title: apiErr.userTitle, hint: apiErr.userHint }),
+      });
     } finally {
       setGeneratingQuiz(false);
     }
@@ -517,7 +576,11 @@ export default function NoteView({ id }: { id: string }) {
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans">
-      <RateLimitModal isOpen={isRateLimitOpen} onClose={() => setIsRateLimitOpen(false)} />
+      <RateLimitModal
+        isOpen={isRateLimitOpen}
+        onClose={() => setIsRateLimitOpen(false)}
+        generationStatus={generationReport}
+      />
 
       {/* Backdrop for mobile drawers */}
       {isMobileOrTablet && (isLeftDrawerOpen || isRightDrawerOpen) && (
@@ -668,17 +731,30 @@ export default function NoteView({ id }: { id: string }) {
                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Study Session</span>
               </div>
               <h1 className="text-4xl lg:text-6xl font-black tracking-tight leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>{note.title}</h1>
-              {notesContent.includes('Notes generation failed') && (
-                <div className="mt-6 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-sm text-amber-900 dark:text-amber-200">
-                  <p className="font-bold mb-1">Partial generation — free tier limit hit</p>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Detailed notes, quiz, flashcards, and diagrams may be missing. Exam cram and presentation tabs may still have content.
-                    Wait for the timer or{' '}
-                    <button type="button" onClick={() => setIsRateLimitOpen(true)} className="underline font-bold text-primary hover:opacity-80">
-                      upgrade credits
-                    </button>
-                    {' '}to run a full synthesis again.
-                  </p>
+              {apiNotice && (
+                <div className="mt-4 flex items-start justify-between gap-3 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5">
+                  <div>
+                    <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{apiNotice.title}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{apiNotice.hint}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setApiNotice(null)}
+                    className="text-muted-foreground hover:text-foreground shrink-0 p-1"
+                    aria-label="Dismiss"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {generationReport && generationReport.overall !== 'completed' && (
+                <div className="mt-6">
+                  <GenerationStatusPanel
+                    report={generationReport}
+                    onRegenerateSection={handleRegenerateSection}
+                    regeneratingKey={regeneratingKey}
+                    onUpgrade={() => router.push('/pricing')}
+                  />
                 </div>
               )}
             </motion.div>

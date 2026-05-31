@@ -23,6 +23,13 @@ import {
   UPLOAD_ERROR_META,
   type UploadErrorType,
 } from '@/lib/uploadErrors';
+import {
+  inferGenerationStatus,
+  markQuotaLimitReached,
+  parseGenerationStatusFromResponse,
+  type GenerationStatusReport,
+} from '@/lib/generationStatus';
+import { parseApiError } from '@/lib/apiErrors';
 
 // ── Error classifier (re-exported helpers) ─────────────────────────────────────
 
@@ -68,6 +75,7 @@ export default function UploadPage() {
   const [wakeStatus, setWakeStatus] = useState<'idle' | 'waking' | 'ready'>('idle');
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [existingNotesCount, setExistingNotesCount] = useState<number | undefined>(undefined);
+  const [generationReport, setGenerationReport] = useState<GenerationStatusReport | null>(null);
 
   const [transcriptTitle, setTranscriptTitle] = useState('');
   const [manualTranscript, setManualTranscript] = useState('');
@@ -256,9 +264,15 @@ export default function UploadPage() {
       // Normalise response — axios wraps in {data}, fetch returns raw JSON
       const responseData = response?.data ?? response;
 
-      if (responseData && responseData.status === 'completed') {
+      if (
+        responseData &&
+        ['completed', 'partial', 'quota_exceeded'].includes(String(responseData.status))
+      ) {
         const notesBody = responseData.simplified_content || responseData.simplified_notes || '';
-        const notesFailed = notesBody.includes('Notes generation failed');
+        const genStatus =
+          parseGenerationStatusFromResponse(responseData as Record<string, unknown>) ||
+          inferGenerationStatus({ ...responseData, simplified_notes: notesBody } as Record<string, unknown>);
+
         const noteData = {
           ...responseData,
           simplified_notes: notesBody,
@@ -266,7 +280,8 @@ export default function UploadPage() {
           createdAt: new Date().toISOString(),
           source_type: type,
           source_text: responseData.source_text || responseData.raw_text || '',
-          status: notesFailed ? 'partial' : 'completed',
+          status: genStatus.overall === 'completed' ? 'completed' : 'partial',
+          generation_status: genStatus,
         };
 
         let noteId: string;
@@ -283,36 +298,41 @@ export default function UploadPage() {
           localStorage.setItem('lumina_guest_gen_count', (currentCount + 1).toString());
         }
 
-        if (notesFailed) {
-          localStorage.setItem('lumina_rate_limit_ts', String(Date.now() + 3600000));
+        const isPartial = genStatus.overall !== 'completed';
+        if (genStatus.quotaExceeded) markQuotaLimitReached();
+
+        if (isPartial) {
+          const count = await getExistingNotesCount();
+          setExistingNotesCount(count + 1);
+          setGenerationReport(genStatus);
           setTimeout(() => router.push(`/notes?id=${noteId}&limitReached=1`), 800);
         } else {
           setTimeout(() => router.push(`/notes?id=${noteId}`), 800);
         }
+      } else if (responseData?.status === 'failed') {
+        throw Object.assign(new Error(responseData?.detail || 'Generation failed. Please try again.'), { _generation: true });
       } else {
         throw Object.assign(new Error(responseData?.detail || 'Generation failed. Please try again.'), { _generation: true });
       }
     } catch (err) {
       clearInterval(iv);
-      const errorVal = err as { response?: { data?: { detail?: string } }; message?: string; _validation?: boolean; _generation?: boolean };
       console.error("[LUMINA] Ingestion failed with error:", err);
-      if (errorVal?.response) {
-        console.error("[LUMINA] Backend Response:", errorVal.response.data);
-      }
+
+      const errorVal = err as { message?: string; _validation?: boolean; _generation?: boolean };
+      const apiErr = parseApiError(err);
 
       if (errorVal._validation) {
         showError('validation', errorVal.message || 'Please complete the form before synthesizing.');
       } else if (errorVal._generation) {
         showError('generation_failed', errorVal.message || 'Generation failed.', errorVal.message, true);
+      } else if (apiErr.kind === 'quota_exceeded' || apiErr.kind === 'payment_required') {
+        markQuotaLimitReached();
+        const count = await getExistingNotesCount();
+        setExistingNotesCount(count);
+        setGenerationReport(null);
+        setShowLimitModal(true);
       } else {
-        const classified = classifyUploadError(err);
-        if (classified.isRateLimit) {
-          const count = await getExistingNotesCount();
-          setExistingNotesCount(count);
-          setShowLimitModal(true);
-        } else {
-          showError(classified.type, classified.message, classified.detail, classified.isRetryable);
-        }
+        showError(apiErr.uploadErrorType, apiErr.userHint, apiErr.detail, apiErr.isRetryable);
       }
       setLoading(false);
       setWakeStatus('idle');
@@ -330,6 +350,7 @@ export default function UploadPage() {
           isOpen={showLimitModal}
           onClose={() => setShowLimitModal(false)}
           existingNotesCount={existingNotesCount}
+          generationStatus={generationReport}
         />
 
         {/* Pinterest-style skeleton loading overlay */}

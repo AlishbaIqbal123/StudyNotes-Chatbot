@@ -39,15 +39,30 @@ export function useChatHistory(noteContent: string) {
         body: formData,
       });
 
-      if (response.status === 429) {
+      if (response.status === 429 || response.status === 402) {
         setHistory(prev => prev.slice(0, -1));
         return { error: 'RATE_LIMIT_REACHED' };
       }
 
       if (!response.ok || !response.body) {
+        const detail = await response.text().catch(() => '');
+        const isQuota =
+          response.status === 429 ||
+          response.status === 402 ||
+          detail.toLowerCase().includes('quota');
+        if (isQuota) {
+          setHistory(prev => prev.slice(0, -1));
+          return { error: 'RATE_LIMIT_REACHED' };
+        }
         setHistory(prev => [
           ...prev.slice(0, -1),
-          { role: 'assistant', content: 'Something went wrong. Please try again.' },
+          {
+            role: 'assistant',
+            content:
+              response.status >= 500
+                ? 'The AI engine is waking up or temporarily unavailable. Please try again in a minute.'
+                : 'Something went wrong. Please try again.',
+          },
         ]);
         return { error: 'COMMUNICATION_ERROR' };
       }
