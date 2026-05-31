@@ -36,12 +36,17 @@ VALID_MERMAID_KEYWORDS = (
 )
 
 
+class AIServiceError(Exception):
+    pass
+
+
 def _reraise_if_quota(e: Exception) -> None:
     err = str(e)
     if any(x in err for x in ("RATE_LIMIT_429", "RATE_LIMIT_EXCEEDED", "PAYMENT_REQUIRED_402", "402")):
         raise AIServiceError("RATE_LIMIT_EXCEEDED: OpenRouter free tier quota exhausted") from e
 
 
+def _validate_mermaid(diagram: str) -> str:
     clean = diagram.strip()
     if not clean:
         return ""
