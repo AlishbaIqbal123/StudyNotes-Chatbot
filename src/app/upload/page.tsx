@@ -66,7 +66,7 @@ function classifyError(err: unknown): ClassifiedError {
 
 const inputTypes = [
   { id: 'upload' as const, label: 'Document', icon: FileText, desc: 'PDF, DOCX, PPTX, TXT', color: '#1E40AF' },
-  { id: 'youtube' as const, label: 'YouTube', icon: Video, desc: 'Lecture / Video link', color: '#F59E0B' },
+  { id: 'youtube' as const, label: 'Video Transcript', icon: Video, desc: 'Paste captions or lecture text', color: '#F59E0B' },
   { id: 'text' as const, label: 'Deep Text', icon: Type, desc: 'Raw notes / Abstract', color: '#3B82F6' },
 ] as const;
 
@@ -103,11 +103,8 @@ export default function UploadPage() {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [existingNotesCount, setExistingNotesCount] = useState<number | undefined>(undefined);
 
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [videoTitle, setVideoTitle] = useState('');
-  const [channelName, setChannelName] = useState('');
+  const [transcriptTitle, setTranscriptTitle] = useState('');
   const [manualTranscript, setManualTranscript] = useState('');
-  const [showManualInput, setShowManualInput] = useState(false);
   const [rawText, setRawText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -196,15 +193,13 @@ export default function UploadPage() {
     try {
       let response;
       if (type === 'youtube') {
-        if (showManualInput && manualTranscript.length > 50) {
-          response = await studyApi.processText(manualTranscript, generationType);
-        } else {
-          if (!youtubeUrl.includes('youtube.com') && !youtubeUrl.includes('youtu.be')) {
-            throw new Error('Please provide a valid YouTube URL.');
-          }
-          // Pass title and channel to the API
-          response = await studyApi.processYoutube(youtubeUrl, generationType, videoTitle, channelName);
+        if (manualTranscript.trim().length < 50) {
+          throw new Error('Paste at least 50 characters of transcript or lecture notes.');
         }
+        const content = transcriptTitle.trim()
+          ? `# ${transcriptTitle.trim()}\n\n${manualTranscript.trim()}`
+          : manualTranscript.trim();
+        response = await studyApi.processText(content, generationType);
       }
       else if (type === 'text') {
         if (rawText.length < 50) throw new Error('Input text is too brief (min 50 chars).');
@@ -459,55 +454,36 @@ export default function UploadPage() {
                 )}
                 {activeTab === 'youtube' && (
                   <motion.div key="y" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
-                    <div className="mb-10 text-left">
-                      <h3 className="text-2xl font-bold mb-2">YouTube Link</h3>
-                      <p className="text-sm text-muted-foreground">Extract knowledge from lectures.</p>
+                    <div className="mb-8 text-left">
+                      <h3 className="text-2xl font-bold mb-2">Video Transcript</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Paste the lecture transcript or captions (from YouTube → ⋯ → Show transcript → copy, or any caption file).
+                      </p>
                     </div>
 
-                    {!showManualInput ? (
-                      <div className="space-y-4">
-                        <div className="space-y-1.5">
-                          <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Link</p>
-                          <input type="url" disabled={loading} placeholder="Paste YouTube link..." className="w-full bg-muted rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/20" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Video Title (Help AI)</p>
-                            <input type="text" disabled={loading} placeholder="e.g. E-commerce Class 1" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={videoTitle} onChange={e => setVideoTitle(e.target.value)} />
-                          </div>
-                          <div className="space-y-1.5">
-                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Channel Name</p>
-                            <input type="text" disabled={loading} placeholder="e.g. MIT OpenCourseWare" className="w-full bg-muted rounded-xl px-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20" value={channelName} onChange={e => setChannelName(e.target.value)} />
-                          </div>
-                        </div>
-
-                        <button
+                    <div className="space-y-4 flex-1 flex flex-col min-h-0">
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Lecture title (optional)</p>
+                        <input
+                          type="text"
                           disabled={loading}
-                          onClick={() => setShowManualInput(true)}
-                          className="mt-2 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
-                        >
-                          Link not working? Paste transcript manually
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <textarea
-                          disabled={loading}
-                          className="w-full min-h-[200px] bg-muted rounded-[2rem] p-6 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
-                          placeholder="Paste the video transcript here..."
-                          value={manualTranscript}
-                          onChange={e => setManualTranscript(e.target.value)}
+                          placeholder="e.g. APIs & Webhooks — Lecture 3"
+                          className="w-full bg-muted rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                          value={transcriptTitle}
+                          onChange={e => setTranscriptTitle(e.target.value)}
                         />
-                        <button
-                          disabled={loading}
-                          onClick={() => setShowManualInput(false)}
-                          className="mt-4 text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-colors text-left"
-                        >
-                          Back to Link Mode
-                        </button>
-                      </>
-                    )}
+                      </div>
+                      <textarea
+                        disabled={loading}
+                        className="flex-1 min-h-[220px] w-full bg-muted rounded-[2rem] p-6 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                        placeholder="Paste full transcript here (minimum 50 characters)..."
+                        value={manualTranscript}
+                        onChange={e => setManualTranscript(e.target.value)}
+                      />
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        Automatic YouTube link extraction is not available — paste the text and we will build your study board from it.
+                      </p>
+                    </div>
 
                     <div className="mt-10 mb-6">
                       <p className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4">Generation Mode</p>
@@ -526,11 +502,11 @@ export default function UploadPage() {
                       <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">{generationTip}</p>
                     </div>
                     <button
-                      disabled={loading || (showManualInput ? manualTranscript.length < 50 : !youtubeUrl)}
+                      disabled={loading || manualTranscript.trim().length < 50}
                       onClick={() => handleProcess('youtube')}
                       className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30"
                     >
-                      {showManualInput ? 'Synthesize Transcript' : 'Transduce Video'}
+                      Synthesize from Transcript
                     </button>
                   </motion.div>
                 )}

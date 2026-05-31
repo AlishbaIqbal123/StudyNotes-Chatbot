@@ -195,7 +195,7 @@ export default function DashboardPage() {
                     }`}
                   style={{ fontFamily: "'Space Grotesk', sans-serif" }}
                 >
-                  {f === 'all' ? 'All' : f === 'file' ? 'Docs' : f === 'youtube' ? 'Video' : 'Text'}
+                  {f === 'all' ? 'All' : f === 'file' ? 'Docs' : f === 'youtube' ? 'Transcript' : 'Text'}
                 </button>
               ))}
             </div>
