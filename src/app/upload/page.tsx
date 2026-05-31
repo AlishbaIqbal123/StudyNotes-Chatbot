@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload as UploadIcon, Video, FileText, Type, Sparkles,
-  CheckCircle2, Brain, AlertCircle, X, Lock, RefreshCw
+  CheckCircle2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { studyApi } from '@/lib/api';
@@ -13,56 +13,16 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import RateLimitModal from '@/components/notes/RateLimitModal';
+import UploadLoadingOverlay from '@/components/upload/UploadLoadingOverlay';
+import UploadColdStartBanner from '@/components/upload/UploadColdStartBanner';
+import ErrorStateScreen from '@/components/ui/ErrorStateScreen';
+import { useBackendWakeContext } from '@/components/BackendWakeProvider';
+import {
+  classifyUploadError,
+  type UploadErrorType,
+} from '@/lib/uploadErrors';
 
-// ── Error classifier ──────────────────────────────────────────────────────────
-interface ClassifiedError {
-  message: string;
-  isRateLimit: boolean;
-  isRetryable: boolean;
-}
-
-function classifyError(err: unknown): ClassifiedError {
-  const errorVal = err as { response?: { status?: number; data?: { detail?: string } }; message?: string; code?: string };
-  const status = errorVal?.response?.status;
-  const detail = (errorVal?.response?.data?.detail || errorVal?.message || '').toLowerCase();
-
-  if (status === 429) {
-    return { message: '', isRateLimit: true, isRetryable: false };
-  }
-  if (!errorVal?.response && (errorVal?.code === 'ERR_NETWORK' || errorVal?.message?.includes('Network'))) {
-    return {
-      message: 'Network error — please check your connection and try again.',
-      isRateLimit: false,
-      isRetryable: true,
-    };
-  }
-  if (status === 400 && (detail.includes('transcript') || detail.includes('youtube') || detail.includes('caption'))) {
-    return {
-      message: 'Could not extract the video transcript. Try pasting the transcript manually using the link below.',
-      isRateLimit: false,
-      isRetryable: false,
-    };
-  }
-  if (status === 400 && (detail.includes('too short') || detail.includes('minimum') || detail.includes('insufficient'))) {
-    return {
-      message: 'The extracted content is too short. Please provide more detailed source material.',
-      isRateLimit: false,
-      isRetryable: false,
-    };
-  }
-  if (status === 500) {
-    return {
-      message: 'The AI service encountered an unexpected error. Please try again in a moment.',
-      isRateLimit: false,
-      isRetryable: true,
-    };
-  }
-  return {
-    message: errorVal?.response?.data?.detail || errorVal?.message || 'An unexpected error occurred. Please try again.',
-    isRateLimit: false,
-    isRetryable: false,
-  };
-}
+// ── Error classifier (re-exported helpers) ─────────────────────────────────────
 
 const inputTypes = [
   { id: 'upload' as const, label: 'Document', icon: FileText, desc: 'PDF, DOCX, PPTX, TXT', color: '#1E40AF' },
@@ -94,12 +54,16 @@ const detailedSteps = [
 export default function UploadPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { status: backendStatus, pingBackend } = useBackendWakeContext();
   const [activeTab, setActiveTab] = useState<'upload' | 'youtube' | 'text'>('upload');
   const [loading, setLoading] = useState(false);
   const [dynamicStatusText, setDynamicStatusText] = useState(steps[0]);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<UploadErrorType | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | undefined>();
   const [isRetryable, setIsRetryable] = useState(false);
+  const [wakeStatus, setWakeStatus] = useState<'idle' | 'waking' | 'ready'>('idle');
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [existingNotesCount, setExistingNotesCount] = useState<number | undefined>(undefined);
 
@@ -123,6 +87,18 @@ export default function UploadPage() {
 
   const generationTip =
     'Tip: Full Mastery and Exam Tomorrow include roadmap & mind-map diagrams. If OpenRouter rate-limits (free tier), wait ~60s and tap Retry.';
+
+  const inputReady =
+    (activeTab === 'upload' && !!file) ||
+    (activeTab === 'youtube' && manualTranscript.trim().length >= 50) ||
+    (activeTab === 'text' && rawText.length >= 50);
+
+  // Pre-warm backend while user prepares content (before they click generate)
+  useEffect(() => {
+    if (inputReady && backendStatus !== 'online') {
+      void pingBackend();
+    }
+  }, [inputReady, backendStatus, pingBackend]);
 
   const getExistingNotesCount = async (): Promise<number> => {
     try {
@@ -168,6 +144,20 @@ export default function UploadPage() {
     return iv;
   };
 
+  const clearError = () => {
+    setError(null);
+    setErrorType(null);
+    setErrorDetail(undefined);
+    setIsRetryable(false);
+  };
+
+  const showError = (type: UploadErrorType, message: string, detail?: string, retryable = false) => {
+    setErrorType(type);
+    setError(message);
+    setErrorDetail(detail);
+    setIsRetryable(retryable);
+  };
+
   const handleProcess = async (type: string) => {
     if (loading) return;
     setLastProcessType(type);
@@ -181,34 +171,48 @@ export default function UploadPage() {
     }
 
     if (type === 'file' && file && file.size > 15 * 1024 * 1024) {
-      setError('Content volume exceeds atelier capacity (15MB limit).');
+      showError('file_too_large', 'Content volume exceeds atelier capacity (15MB limit).');
+      return;
+    }
+    if (type === 'youtube' && manualTranscript.trim().length < 50) {
+      showError('validation', 'Paste at least 50 characters of transcript or lecture notes.');
+      return;
+    }
+    if (type === 'text' && rawText.length < 50) {
+      showError('validation', 'Input text is too brief (min 50 chars).');
+      return;
+    }
+    if (type === 'file' && !file) {
+      showError('validation', 'Choose a document before starting synthesis.');
       return;
     }
 
-    setError(null);
+    clearError();
     setLoading(true);
+    setWakeStatus(backendStatus === 'online' ? 'ready' : 'waking');
     setProgress(5);
     const iv = simulateProgress();
+
+    // Wake HF backend in parallel — no manual URL visit needed
+    void pingBackend().then((ok) => setWakeStatus(ok ? 'ready' : 'waking'));
 
     try {
       let response;
       if (type === 'youtube') {
-        if (manualTranscript.trim().length < 50) {
-          throw new Error('Paste at least 50 characters of transcript or lecture notes.');
-        }
         const content = transcriptTitle.trim()
           ? `# ${transcriptTitle.trim()}\n\n${manualTranscript.trim()}`
           : manualTranscript.trim();
         response = await studyApi.processText(content, generationType);
       }
       else if (type === 'text') {
-        if (rawText.length < 50) throw new Error('Input text is too brief (min 50 chars).');
         response = await studyApi.processText(rawText, generationType);
       }
       else if (type === 'file' && file) {
         response = await studyApi.processFile(file, generationType);
       }
-      else throw new Error('No valid input detected.');
+      else {
+        throw Object.assign(new Error('No valid input detected.'), { _validation: true });
+      }
 
       clearInterval(iv);
       setProgress(100);
@@ -243,28 +247,32 @@ export default function UploadPage() {
 
         setTimeout(() => router.push(`/notes?id=${noteId}`), 800);
       } else {
-        // Response came back but status isn't 'completed'
-        throw new Error(responseData?.detail || 'Generation failed. Please try again.');
+        throw Object.assign(new Error(responseData?.detail || 'Generation failed. Please try again.'), { _generation: true });
       }
     } catch (err) {
       clearInterval(iv);
-      const errorVal = err as { response?: { data?: { detail?: string } }; message?: string };
+      const errorVal = err as { response?: { data?: { detail?: string } }; message?: string; _validation?: boolean; _generation?: boolean };
       console.error("[LUMINA] Ingestion failed with error:", err);
       if (errorVal?.response) {
         console.error("[LUMINA] Backend Response:", errorVal.response.data);
       }
-      const classified = classifyError(err);
-      if (classified.isRateLimit) {
-        const count = await getExistingNotesCount();
-        setExistingNotesCount(count);
-        setShowLimitModal(true);
+
+      if (errorVal._validation) {
+        showError('validation', errorVal.message || 'Please complete the form before synthesizing.');
+      } else if (errorVal._generation) {
+        showError('generation_failed', errorVal.message || 'Generation failed.', errorVal.message, true);
       } else {
-        const rawMessage = errorVal?.response?.data?.detail || errorVal?.message || '';
-        const displayMessage = rawMessage ? `${classified.message} (Detail: ${rawMessage})` : classified.message;
-        setError(displayMessage);
-        setIsRetryable(classified.isRetryable);
+        const classified = classifyUploadError(err);
+        if (classified.isRateLimit) {
+          const count = await getExistingNotesCount();
+          setExistingNotesCount(count);
+          setShowLimitModal(true);
+        } else {
+          showError(classified.type, classified.message, classified.detail, classified.isRetryable);
+        }
       }
       setLoading(false);
+      setWakeStatus('idle');
       setProgress(0);
       setDynamicStatusText(steps[0]);
     }
@@ -281,75 +289,27 @@ export default function UploadPage() {
           existingNotesCount={existingNotesCount}
         />
 
-        {/* Full Screen AI Ingestion Loader Pop-up */}
-        <AnimatePresence>
-          {loading && (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-300">
-              {/* Backdrop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-background/90 backdrop-blur-md"
-              />
-              {/* Modal Card */}
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative w-full max-w-[500px] p-12 rounded-[3rem] bg-card/75 backdrop-blur-2xl border border-accent/30 shadow-[0_20px_50px_rgba(30,64,175,0.18)] text-left overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-primary/10 blur-[60px] pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-accent/10 blur-[60px] pointer-events-none" />
-                
-                <div className="flex flex-col items-center text-center relative z-10">
-                  {/* Animated Brain Icon Container */}
-                  <div className="w-24 h-24 rounded-3xl border border-accent/20 flex items-center justify-center relative shadow-[0_0_30px_rgba(245,158,11,0.25)] bg-card/60 backdrop-blur-xl shrink-0 mb-8">
-                    <motion.div 
-                      animate={{ rotate: 360 }} 
-                      transition={{ repeat: Infinity, duration: 4, ease: "linear" }} 
-                      className="absolute inset-0 border-t-2 border-accent rounded-3xl" 
-                    />
-                    <Brain className="w-10 h-10 text-accent animate-pulse" />
-                  </div>
-                  
-                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-accent mb-2">
-                    Synthesizing Session
-                  </p>
-                  
-                  <h3 className="text-2xl font-black mb-6 tracking-tight text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-                    {dynamicStatusText}
-                  </h3>
-                  
-                  {/* Progress Bar Container */}
-                  <div className="w-full h-3 bg-muted/40 rounded-full overflow-hidden relative border border-white/5 mb-4 shadow-inner">
-                    <motion.div 
-                      className="h-full bg-gradient-to-r from-primary via-accent to-secondary" 
-                      animate={{ width: `${progress}%` }} 
-                    />
-                  </div>
-                  
-                  <div className="flex justify-between items-center w-full text-xs font-bold text-muted-foreground mt-2">
-                    <span className="flex items-center gap-1.5 font-black uppercase tracking-wider text-[10px]">
-                      <span className="w-2.5 h-2.5 rounded-full bg-accent animate-ping" />
-                      Atelier Status
-                    </span>
-                    <span className="text-accent text-lg font-mono font-black">{Math.round(progress)}%</span>
-                  </div>
-                  
-                  <p className="mt-8 text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest leading-relaxed">
-                    Curating Socratic notes & custom visuals
-                  </p>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+        {/* Pinterest-style skeleton loading overlay */}
+        {loading && (
+          <UploadLoadingOverlay
+            statusText={dynamicStatusText}
+            progress={progress}
+            wakeStatus={wakeStatus}
+          />
+        )}
 
-        {/* Guest limit modal (1 free generation) */}
-        <AnimatePresence>
-          {false && <div />}
-        </AnimatePresence>
+        {/* Typed error screen with cursor-following cartoon */}
+        {errorType && !loading && (
+          <ErrorStateScreen
+            errorType={errorType}
+            message={error || undefined}
+            detail={errorDetail}
+            isRetryable={isRetryable}
+            onRetry={isRetryable ? () => handleProcess(lastProcessType || activeTab) : undefined}
+            onDismiss={clearError}
+            onBack={clearError}
+          />
+        )}
 
         {/* Page Header */}
         <div className="mb-12 text-left">
@@ -362,33 +322,7 @@ export default function UploadPage() {
           </h1>
           <p className="text-lg max-w-2xl text-muted-foreground">Transform source material into research-backed notes.</p>
 
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mt-8 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-start gap-4 text-red-500"
-              >
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-xs font-black uppercase tracking-widest mb-1">Synthesis Failure</p>
-                  <p className="text-sm font-medium">{error}</p>
-                  {isRetryable && (
-                    <button
-                      onClick={() => handleProcess(lastProcessType || activeTab)}
-                      className="mt-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-red-500 hover:text-red-700 transition-colors"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" /> Retry
-                    </button>
-                  )}
-                </div>
-                <button onClick={() => setError(null)} className="p-1 hover:bg-red-500/10 rounded-lg">
-                  <X className="w-4 h-4" />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <UploadColdStartBanner />
         </div>
 
         {/* Workspace */}

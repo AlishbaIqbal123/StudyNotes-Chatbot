@@ -11,6 +11,9 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { db } from '@/lib/firebase';
 import { collection, query, where, orderBy, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
+import QuranAyahWidget from '@/components/dashboard/QuranAyahWidget';
+import PinGridSkeleton from '@/components/ui/PinGridSkeleton';
+import { useBackendWakeContext } from '@/components/BackendWakeProvider';
 
 const getTypeIcon = (type: string) => {
   switch (type?.toLowerCase()) {
@@ -39,11 +42,9 @@ interface DashboardNote {
   [key: string]: unknown;
 }
 
-interface QuoteItem {
+interface QuranItem {
   id: string;
-  renderType: 'quote';
-  quote: string;
-  author: string;
+  renderType: 'quran';
 }
 
 interface ActionItem {
@@ -61,7 +62,7 @@ interface NoteItem {
   index: number;
 }
 
-type GridItem = QuoteItem | ActionItem | NoteItem;
+type GridItem = QuranItem | ActionItem | NoteItem;
 
 export default function DashboardPage() {
   const [notes, setNotes] = useState<DashboardNote[]>([]);
@@ -69,6 +70,7 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<'all' | 'youtube' | 'file' | 'text'>('all');
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const { user } = useAuth();
+  const { status: backendStatus, pingBackend, wakeIntervalMs } = useBackendWakeContext();
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -252,15 +254,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* LOADING SHIMMER GRID */}
+        {/* Pinterest-style skeleton while library loads */}
         {loading && (
-          <div className="masonry-grid-view">
-            {[280, 420, 320, 380, 300, 350, 400, 310].map((h, i) => (
-              <div key={i} className="skeleton-shimmer rounded-[2.5rem] relative overflow-hidden" style={{ height: h }}>
-                 <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 to-transparent" />
-              </div>
-            ))}
-          </div>
+          <PinGridSkeleton showHeader={false} showStats cardCount={12} />
         )}
 
         {/* EMPTY STATE */}
@@ -279,7 +275,14 @@ export default function DashboardPage() {
               </div>
             </div>
             <h3 className="text-3xl font-bold mb-4" style={{ fontFamily: "'Playfair Display', serif" }}>Start Your First Collection</h3>
-            <p className="text-muted-foreground max-w-sm mx-auto mb-10 leading-relaxed">Your knowledge board is a blank canvas. Upload source material to begin the synthesis process.</p>
+            <p className="text-muted-foreground max-w-sm mx-auto mb-8 leading-relaxed">Your knowledge board is a blank canvas. Upload source material to begin the synthesis process.</p>
+            <div className="w-full max-w-md mb-10">
+              <QuranAyahWidget
+                backendStatus={backendStatus}
+                onRefresh={() => void pingBackend()}
+                wakeIntervalMs={wakeIntervalMs}
+              />
+            </div>
             <Link href="/upload" className="btn-primary px-10 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-2xl shadow-primary/20">
               Initiate New Synthesis <ChevronRight className="w-4 h-4" />
             </Link>
@@ -295,10 +298,8 @@ export default function DashboardPage() {
           for (let i = 0; i < Math.max(filteredNotes.length + 2, 4); i++) {
             if (i === 1) {
               itemsToRender.push({
-                id: 'quote-card-default',
-                renderType: 'quote',
-                quote: "“The capacity to learn is a gift; the ability to learn is a skill; the willingness to learn is a choice.”",
-                author: "Brian Herbert"
+                id: 'quran-widget',
+                renderType: 'quran',
               });
             } else if (i === 3) {
               itemsToRender.push({
@@ -325,7 +326,7 @@ export default function DashboardPage() {
           return (
             <div className="masonry-grid-view">
               {itemsToRender.map((item, idx) => {
-                if (item.renderType === 'quote') {
+                if (item.renderType === 'quran') {
                   return (
                     <motion.div
                       key={item.id}
@@ -333,18 +334,11 @@ export default function DashboardPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.05, duration: 0.5 }}
                     >
-                      <div className="p-8 rounded-[2.5rem] bg-card border border-border border-l-4 border-l-amber-500 hover:border-gold hover:shadow-gold-glow transition-all duration-500 flex flex-col justify-between min-h-[280px] group">
-                        <div className="text-amber-500 font-bold text-3xl opacity-30 leading-none">“</div>
-                        <p className="text-base italic font-semibold leading-relaxed font-serif text-foreground opacity-90 my-2">
-                          {item.quote}
-                        </p>
-                        <div className="flex items-center justify-between pt-4 border-t border-muted">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Aesthetic Quote</span>
-                          <span className="text-xs font-bold text-gold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                            — {item.author}
-                          </span>
-                        </div>
-                      </div>
+                      <QuranAyahWidget
+                        backendStatus={backendStatus}
+                        onRefresh={() => void pingBackend()}
+                        wakeIntervalMs={wakeIntervalMs}
+                      />
                     </motion.div>
                   );
                 }

@@ -29,6 +29,13 @@ export const studyApi = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
 
+  /** Lightweight ping — wakes Hugging Face Space from sleep on free tier */
+  async healthCheck(): Promise<{ status: string; version?: string; api_key_loaded?: boolean }> {
+    const res = await fetch(`${API_BASE_URL}/`, { method: 'GET', cache: 'no-store' });
+    if (!res.ok) throw new Error('Backend unavailable');
+    return res.json();
+  },
+
   async processYoutube(url: string, generationType: string = 'all', videoTitle?: string, channelName?: string) {
     const formData = new FormData();
     formData.append('type', 'youtube');

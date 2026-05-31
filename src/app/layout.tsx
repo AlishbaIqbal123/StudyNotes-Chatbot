@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import BackendWakeProvider from '@/components/BackendWakeProvider';
 
 export const metadata: Metadata = {
   title: 'LuminaStudy | AI-Powered Pinterest-Style Study Platform',
@@ -23,14 +24,16 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.bunny.net" />
-        <link href="https://fonts.bunny.net/css2?family=Manrope:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,800;1,900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css2?family=Amiri:wght@400;700&family=Manrope:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;0,800;0,900;1,700;1,800;1,900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <link rel="icon" type="image/svg+xml" href="/logo.svg" />
         <link rel="apple-touch-icon" href="/logo.svg" />
       </head>
       <body className="antialiased min-h-screen transition-colors duration-300">
         <ThemeProvider>
           <AuthProvider>
-            {children}
+            <BackendWakeProvider>
+              {children}
+            </BackendWakeProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
