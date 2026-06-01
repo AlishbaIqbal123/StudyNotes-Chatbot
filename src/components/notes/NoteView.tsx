@@ -542,37 +542,408 @@ export default function NoteView({ id }: { id: string }) {
   if (loading) return <NoteViewSkeleton />;
   if (error || !note) return <div className="h-screen flex items-center justify-center bg-background text-red-500">{error || 'Note not found'}</div>;
 
-  // Notes content — strip any quiz/flashcard/podcast sections that may have leaked
-  // from old backend-generated notes. New backend generates pure notes, but old stored
-  // notes may still contain these sections.
-  const rawNotes = (note.simplified_notes || note.simplified_content || "").trim();
-  const notesContent = rawNotes
-    // Remove ## Knowledge Quiz / ## [Knowledge Quiz] sections and everything after until next ##
-    .replace(/^##\s*\[?Knowledge Quiz\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
-    // Remove ## Recall Flashcards sections
-    .replace(/^##\s*\[?Recall Flashcards\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
-    // Remove ## Audio Lab Script sections
-    .replace(/^##\s*\[?Audio Lab Script\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
-    // Remove ## Visual Style Prompt sections
-    .replace(/^##\s*\[?Visual Style Prompt\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
-    // Remove ## Study Roadmap sections (these have their own tab)
-    .replace(/^##\s*\[?Study Roadmap\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
-    // Remove ## Concept Mind Map sections (these have their own tab)
-    .replace(/^##\s*\[?Concept Mind Map\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
-    // Remove pipe-separated quiz lines (Question | A | B | C | D | Answer)
-    .replace(/^[^|\n]+\|[^|\n]+\|[^|\n]+\|[^|\n]+\|[^|\n]+\|[A-E]\s*$/gm, '')
-    // Remove IMAGE_URL_HERE placeholder lines
-    .replace(/!\[.*?\]\(IMAGE_URL_HERE\)/g, '')
-    .trim();
+  const fixMarkdownImages = (text: string) => {
+    return text.replace(/!\[(.*?)\]\s*\n*\s*\((data:image\/[^)]+|https?:\/\/[^)]+)\)/gi, '![$1]($2)');
+  };
 
-  const examCramContent = (note.exam_cram_notes || '').trim();
-  const presentationContent = (note.presentation_notes || '').trim();
-  const activeMarkdown =
-    activeTab === 'exam_cram'
-      ? examCramContent
-      : activeTab === 'presentation'
-        ? presentationContent
-        : notesContent;
+  const rawNotes = (note.simplified_notes || note.simplified_content || "").trim();
+  const notesContent = fixMarkdownImages(
+    rawNotes
+      // Remove ## Knowledge Quiz / ## [Knowledge Quiz] sections and everything after until next ##
+      .replace(/^##\s*\[?Knowledge Quiz\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+      // Remove ## Recall Flashcards sections
+      .replace(/^##\s*\[?Recall Flashcards\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+      // Remove ## Audio Lab Script sections
+      .replace(/^##\s*\[?Audio Lab Script\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+      // Remove ## Visual Style Prompt sections
+      .replace(/^##\s*\[?Visual Style Prompt\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+      // Remove ## Study Roadmap sections (these have their own tab)
+      .replace(/^##\s*\[?Study Roadmap\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+      // Remove ## Concept Mind Map sections (these have their own tab)
+      .replace(/^##\s*\[?Concept Mind Map\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
+      // Remove pipe-separated quiz lines (Question | A | B | C | D | Answer)
+      .replace(/^[^|\n]+\|[^|\n]+\|[^|\n]+\|[^|\n]+\|[^|\n]+\|[A-E]\s*$/gm, '')
+      // Remove IMAGE_URL_HERE placeholder lines
+      .replace(/!\[.*?\]\(IMAGE_URL_HERE\)/g, '')
+      .trim()
+  );
+
+  const examCramContent = fixMarkdownImages((note.exam_cram_notes || '').trim());
+  const presentationContent = fixMarkdownImages((note.presentation_notes || '').trim());
+
+  const renderNotRequested = (tab: TabType) => {
+    const metaMap: Record<TabType, { key: SectionKey; type: string; label: string }> = {
+      notes: { key: 'notes', type: 'notes', label: 'Detailed Notes' },
+      exam_cram: { key: 'exam_cram', type: 'exam_cram', label: 'Exam Cram' },
+      presentation: { key: 'presentation', type: 'presentation', label: 'Presentation Outline' },
+      roadmap: { key: 'roadmap', type: 'roadmap', label: 'Study Roadmap' },
+      mindmap: { key: 'mind_map', type: 'mindmap', label: 'Concept Map' },
+      quiz: { key: 'quiz', type: 'quiz', label: 'Knowledge Quiz' },
+      flashcards: { key: 'flashcards', type: 'flashcards', label: 'Recall Flashcards' },
+      podcast: { key: 'podcast', type: 'podcast', label: 'Audio Lab' },
+      gallery: { key: 'notes', type: 'notes', label: 'Visual Gallery' },
+    };
+
+    const meta = metaMap[tab] || { key: 'notes', type: 'notes', label: 'Detailed Notes' };
+    const isRegenerating = regeneratingKey === meta.key;
+
+    return (
+      <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border rounded-[2.5rem] bg-card/45 text-center max-w-xl mx-auto my-8 shadow-sm">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-6 text-amber-500">
+          <Bot className="w-8 h-8 animate-pulse" />
+        </div>
+        <h3 className="text-xl font-bold mb-2">This page was not requested</h3>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+          You did not select <strong>{meta.label}</strong> during content ingestion.
+          You can generate it now using the AI engine, or re-upload your document.
+        </p>
+        <button
+          onClick={() => handleRegenerateSection(meta.key, meta.type)}
+          disabled={!!regeneratingKey}
+          className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+        >
+          {isRegenerating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Generating Section...
+            </>
+          ) : (
+            <>
+              <Zap className="w-4 h-4" />
+              Generate Section Now
+            </>
+          )}
+        </button>
+      </div>
+    );
+  };
+
+  const renderProse = (content: string) => {
+    return (
+      <div
+        ref={proseRef}
+        onMouseUp={handleProseMouseUp}
+        className={`lumina-prose lumina-reader-${readerMode} ${isSidebarCollapsed ? 'full-width' : ''}`}
+      >
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeKatex]}
+          components={{
+            h1: ({ children }) => (
+              <h1 style={{
+                fontFamily: "'Playfair Display', serif",
+                fontSize: '2.6rem',
+                fontWeight: 900,
+                color: 'var(--primary)',
+                borderBottom: '3px solid var(--primary)',
+                paddingBottom: '0.5rem',
+                marginTop: '3rem',
+                marginBottom: '1.5rem',
+                lineHeight: 1.2
+              }}>{children}</h1>
+            ),
+            h2: ({ children }) => (
+              <h2 style={{
+                fontSize: '1.9rem',
+                fontWeight: 800,
+                borderLeft: '5px solid var(--primary)',
+                paddingLeft: '1rem',
+                marginTop: '2.5rem',
+                marginBottom: '1rem',
+                color: 'var(--foreground)'
+              }}>{children}</h2>
+            ),
+            h3: ({ children }) => (
+              <h3 style={{
+                fontSize: '1.35rem',
+                fontWeight: 700,
+                color: 'var(--primary)',
+                marginTop: '2rem',
+                marginBottom: '0.75rem',
+                letterSpacing: '0.02em'
+              }}>{children}</h3>
+            ),
+            h4: ({ children }) => (
+              <h4 style={{
+                fontSize: '1.1rem',
+                fontWeight: 600,
+                fontStyle: 'italic',
+                color: 'var(--muted-foreground)',
+                marginTop: '1.5rem',
+                marginBottom: '0.5rem'
+              }}>{children}</h4>
+            ),
+            p: ({ children }) => (
+              <p style={{
+                fontSize: '1.05rem',
+                lineHeight: 1.9,
+                marginBottom: '1.25rem',
+                opacity: 0.85
+              }}>{children}</p>
+            ),
+            strong: ({ children }) => {
+              const term = (Array.isArray(children) ? children.join('') : String(children ?? ''))
+                .replace(/\*\*/g, '').trim();
+              return (
+              <strong
+                role="button"
+                tabIndex={0}
+                title="Click to ask Lumina about this term"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  setLuminaAnchor({
+                    x: rect.left,
+                    y: rect.bottom + 8,
+                    term: term.slice(0, 80) || 'this term',
+                    source: 'term',
+                  });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    (e.currentTarget as HTMLElement).click();
+                  }
+                }}
+                style={{
+                backgroundColor: 'rgba(30, 64, 175, 0.08)',
+                color: 'var(--primary)',
+                padding: '1px 5px',
+                borderRadius: '3px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}>{children}</strong>
+              );
+            },
+            em: ({ children }) => (
+              <em style={{
+                color: '#10B981',
+                fontStyle: 'italic'
+              }}>{children}</em>
+            ),
+            blockquote: ({ children }) => (
+              <blockquote style={{
+                background: 'linear-gradient(to right, rgba(30, 64, 175, 0.06), transparent)',
+                borderLeft: '4px solid var(--secondary)',
+                padding: '0.875rem 1.25rem',
+                borderRadius: '0 0.75rem 0.75rem 0',
+                margin: '1.25rem 0',
+                fontStyle: 'italic',
+                fontSize: '0.975rem',
+                lineHeight: 1.7,
+                color: 'var(--foreground)',
+                opacity: 0.9,
+              }}>{children}</blockquote>
+            ),
+            ul: ({ children }) => (
+              <ul style={{
+                listStyle: 'none',
+                padding: 0,
+                margin: '1rem 0 1.5rem 0'
+              }}>{children}</ul>
+            ),
+            ol: ({ children }) => (
+              <ol style={{
+                paddingLeft: '1.5rem',
+                margin: '1rem 0 1.5rem 0',
+                counterReset: 'list-counter'
+              }}>{children}</ol>
+            ),
+            li: ({ children }) => (
+              <li style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+                marginBottom: '0.6rem',
+                fontSize: '1rem',
+                lineHeight: 1.7,
+                opacity: 0.88
+              }}>
+                <span style={{
+                  display: 'inline-block',
+                  minWidth: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--primary)',
+                  marginTop: '0.55rem',
+                  flexShrink: 0
+                }} />
+                <span>{children}</span>
+              </li>
+            ),
+            table: ({ children }) => (
+              <div style={{
+                width: '100%',
+                overflowX: 'auto',
+                borderRadius: '0.75rem',
+                border: '1px solid var(--border)',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                WebkitOverflowScrolling: 'touch',
+                margin: '1.25rem 0',
+                resize: 'horizontal',
+                overflow: 'auto',
+              }}>
+                <table style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: '0.875rem',
+                  textAlign: 'left',
+                  tableLayout: 'auto',
+                   margin: 0,
+                 }}>{children}</table>
+               </div>
+             ),
+             thead: ({ children }) => (
+               <thead style={{
+                 backgroundColor: 'var(--sidebar-bg)',
+                 color: '#ffffff',
+               }}>{children}</thead>
+             ),
+             th: ({ children }) => (
+               <th style={{
+                 padding: '0.75rem 1rem',
+                 fontWeight: 800,
+                 fontSize: '0.72rem',
+                 textTransform: 'uppercase',
+                 letterSpacing: '0.06em',
+                 whiteSpace: 'nowrap',
+                 borderRight: '1px solid rgba(255,255,255,0.12)',
+                 borderBottom: '2px solid rgba(255,255,255,0.15)',
+                 color: '#ffffff',
+                 position: 'relative',
+                 overflow: 'hidden',
+                 resize: 'horizontal',
+                 minWidth: '80px',
+               }}>{children}</th>
+             ),
+             tbody: ({ children }) => (
+               <tbody>{children}</tbody>
+             ),
+             tr: ({ children }: { children?: React.ReactNode }) => (
+               <tr style={{ borderBottom: '1px solid var(--border)' }}
+                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
+                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+               >{children}</tr>
+             ),
+             td: ({ children }) => (
+               <td style={{
+                 padding: '0.875rem 1.25rem',
+                 fontSize: '0.875rem',
+                 verticalAlign: 'top',
+                 lineHeight: 1.6,
+                 borderRight: '1px solid var(--border)',
+                 borderBottom: '1px solid var(--border)',
+                 wordBreak: 'break-word',
+                 minWidth: '100px',
+               }}>{children}</td>
+             ),
+             // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
+             code({ node, inline, className, children, ...props }: any) {
+               const match = /language-mermaid/.exec(className || '')
+               if (!inline && match) {
+                 return (
+                   <div style={{ margin: '1.75rem 0 2rem' }}>
+                     <MermaidDiagram
+                       chart={String(children).replace(/\n$/, '')}
+                       onNodeClick={handleNodeClick}
+                       onFixDiagram={handleFixDiagram}
+                     />
+                   </div>
+                 )
+               }
+               if (!inline) {
+                 const lang = (className || '').replace('language-', '').trim()
+                 return (
+                   <div style={{
+                     margin: '0.65rem 0 0.85rem',
+                     borderRadius: '0.6rem',
+                     overflow: 'hidden',
+                     border: '1px solid rgba(255,255,255,0.08)',
+                     boxShadow: '0 3px 12px rgba(0,0,0,0.12)',
+                   }}>
+                     <div style={{
+                       background: '#161b22',
+                       padding: '0.3rem 0.75rem',
+                       display: 'flex',
+                       alignItems: 'center',
+                       gap: '0.4rem',
+                       borderBottom: '1px solid rgba(255,255,255,0.06)',
+                     }}>
+                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
+                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
+                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
+                       {lang && (
+                         <span style={{
+                           marginLeft: 'auto',
+                           fontSize: '0.6rem',
+                           fontWeight: 700,
+                           textTransform: 'uppercase',
+                           letterSpacing: '0.1em',
+                           color: 'rgba(255,255,255,0.35)',
+                           fontFamily: 'monospace',
+                         }}>{lang}</span>
+                       )}
+                     </div>
+                     <div style={{
+                       background: '#0d1117',
+                       padding: '0.55rem 0.8rem',
+                       overflowX: 'auto',
+                       maxHeight: '380px',
+                       overflowY: 'auto',
+                     }}>
+                       <code style={{
+                         color: '#e6edf3',
+                         fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace",
+                         fontSize: '0.78rem',
+                         lineHeight: 1.5,
+                         display: 'block',
+                         whiteSpace: 'pre',
+                       }} {...props}>{children}</code>
+                     </div>
+                   </div>
+                 )
+               }
+               return (
+                 <code style={{
+                   backgroundColor: 'rgba(124,58,237,0.07)',
+                   color: 'var(--primary)',
+                   padding: '1px 6px',
+                   borderRadius: '4px',
+                   fontFamily: "'Fira Code', 'Consolas', monospace",
+                   fontSize: '0.82em',
+                   border: '1px solid rgba(124,58,237,0.15)',
+                 }} {...props}>{children}</code>
+               )
+             },
+             a: ({ href, children }) => (
+               <a href={href} target="_blank" rel="noopener noreferrer"
+                 style={{
+                   color: 'var(--primary)',
+                   fontWeight: 600,
+                   textDecoration: 'underline',
+                   textDecorationColor: 'rgba(124,58,237,0.3)'
+                 }}
+               >{children}</a>
+             ),
+             hr: () => (
+               <div style={{
+                 display: 'flex',
+                 alignItems: 'center',
+                 gap: '1rem',
+                 margin: '1.75rem 0',
+               }}>
+                 <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
+                 <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+               </div>
+             ),
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
+    );
+  };
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans">
@@ -731,6 +1102,33 @@ export default function NoteView({ id }: { id: string }) {
                 <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Study Session</span>
               </div>
               <h1 className="text-4xl lg:text-6xl font-black tracking-tight leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>{note.title}</h1>
+              
+              {/* Three mode buttons inside the header */}
+              <div className="flex flex-wrap gap-2 mt-6">
+                {([
+                  { id: 'study' as ReaderMode, tab: 'notes' as TabType, label: 'Study Notes', icon: Book },
+                  { id: 'cram' as ReaderMode, tab: 'exam_cram' as TabType, label: 'Exam Cram', icon: Zap },
+                  { id: 'present' as ReaderMode, tab: 'presentation' as TabType, label: 'Presentation Outline', icon: Presentation },
+                ]).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setReaderMode(m.id);
+                      setActiveTab(m.tab);
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                      activeTab === m.tab
+                        ? 'bg-primary text-white shadow-md shadow-primary/20 scale-105'
+                        : 'bg-card border border-border text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                    }`}
+                  >
+                    <m.icon className="w-3.5 h-3.5" />
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
               {apiNotice && (
                 <div className="mt-4 flex items-start justify-between gap-3 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/5">
                   <div>
@@ -761,686 +1159,336 @@ export default function NoteView({ id }: { id: string }) {
 
             <AnimatePresence mode="wait">
               <motion.article key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="pb-32">
-                {(activeTab === 'notes' || activeTab === 'exam_cram' || activeTab === 'presentation') && (
-                  <>
-                {activeTab === 'exam_cram' && !examCramContent && (
-                  <p className="text-sm text-muted-foreground mb-6 px-4 py-3 rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/5">
-                    No exam cram sheet yet. Re-upload with <strong>Exam Tomorrow</strong> or <strong>Full Mastery Package</strong> to generate a separate cram view.
-                  </p>
-                )}
-                {activeTab === 'presentation' && !presentationContent && (
-                  <p className="text-sm text-muted-foreground mb-6 px-4 py-3 rounded-2xl border border-dashed border-primary/40 bg-primary/5">
-                    No presentation outline yet. Re-upload with <strong>Presentation Prep</strong> or <strong>Full Mastery Package</strong>.
-                  </p>
-                )}
-                {activeTab === 'exam_cram' && !examCramContent ? null : activeTab === 'presentation' && !presentationContent ? null : (
-                  <>
-                <div className="flex flex-wrap gap-2 mb-8">
-                  {([
-                    { id: 'study' as ReaderMode, label: 'Study', icon: Book },
-                    { id: 'cram' as ReaderMode, label: 'Cram', icon: Zap },
-                    { id: 'present' as ReaderMode, label: 'Present', icon: Presentation },
-                  ]).map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setReaderMode(m.id)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                        readerMode === m.id
-                          ? 'bg-primary text-white shadow-md shadow-primary/20'
-                          : 'bg-card border border-border text-muted-foreground hover:border-primary/30'
-                      }`}
-                    >
-                      <m.icon className="w-3.5 h-3.5" />
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-                  <div
-                    ref={proseRef}
-                    onMouseUp={handleProseMouseUp}
-                    className={`lumina-prose lumina-reader-${readerMode} ${isSidebarCollapsed ? 'full-width' : ''}`}
-                  >
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        h1: ({ children }) => (
-                          <h1 style={{
-                            fontFamily: "'Playfair Display', serif",
-                            fontSize: '2.6rem',
-                            fontWeight: 900,
-                            color: 'var(--primary)',
-                            borderBottom: '3px solid var(--primary)',
-                            paddingBottom: '0.5rem',
-                            marginTop: '3rem',
-                            marginBottom: '1.5rem',
-                            lineHeight: 1.2
-                          }}>{children}</h1>
-                        ),
-                        h2: ({ children }) => (
-                          <h2 style={{
-                            fontSize: '1.9rem',
-                            fontWeight: 800,
-                            borderLeft: '5px solid var(--primary)',
-                            paddingLeft: '1rem',
-                            marginTop: '2.5rem',
-                            marginBottom: '1rem',
-                            color: 'var(--foreground)'
-                          }}>{children}</h2>
-                        ),
-                        h3: ({ children }) => (
-                          <h3 style={{
-                            fontSize: '1.35rem',
-                            fontWeight: 700,
-                            color: 'var(--primary)',
-                            marginTop: '2rem',
-                            marginBottom: '0.75rem',
-                            letterSpacing: '0.02em'
-                          }}>{children}</h3>
-                        ),
-                        h4: ({ children }) => (
-                          <h4 style={{
-                            fontSize: '1.1rem',
-                            fontWeight: 600,
-                            fontStyle: 'italic',
-                            color: 'var(--muted-foreground)',
-                            marginTop: '1.5rem',
-                            marginBottom: '0.5rem'
-                          }}>{children}</h4>
-                        ),
-                        p: ({ children }) => (
-                          <p style={{
-                            fontSize: '1.05rem',
-                            lineHeight: 1.9,
-                            marginBottom: '1.25rem',
-                            opacity: 0.85
-                          }}>{children}</p>
-                        ),
-                        strong: ({ children }) => {
-                          const term = (Array.isArray(children) ? children.join('') : String(children ?? ''))
-                            .replace(/\*\*/g, '').trim();
-                          return (
-                          <strong
-                            role="button"
-                            tabIndex={0}
-                            title="Click to ask Lumina about this term"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                              setLuminaAnchor({
-                                x: rect.left,
-                                y: rect.bottom + 8,
-                                term: term.slice(0, 80) || 'this term',
-                                source: 'term',
-                              });
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                (e.currentTarget as HTMLElement).click();
-                              }
-                            }}
-                            style={{
-                            backgroundColor: 'rgba(30, 64, 175, 0.08)',
-                            color: 'var(--primary)',
-                            padding: '1px 5px',
-                            borderRadius: '3px',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}>{children}</strong>
-                          );
-                        },
-                        em: ({ children }) => (
-                          <em style={{
-                            color: '#10B981',
-                            fontStyle: 'italic'
-                          }}>{children}</em>
-                        ),
-                        blockquote: ({ children }) => (
-                          <blockquote style={{
-                            background: 'linear-gradient(to right, rgba(30, 64, 175, 0.06), transparent)',
-                            borderLeft: '4px solid var(--secondary)',
-                            padding: '0.875rem 1.25rem',
-                            borderRadius: '0 0.75rem 0.75rem 0',
-                            margin: '1.25rem 0',
-                            fontStyle: 'italic',
-                            fontSize: '0.975rem',
-                            lineHeight: 1.7,
-                            color: 'var(--foreground)',
-                            opacity: 0.9,
-                          }}>{children}</blockquote>
-                        ),
-                        ul: ({ children }) => (
-                          <ul style={{
-                            listStyle: 'none',
-                            padding: 0,
-                            margin: '1rem 0 1.5rem 0'
-                          }}>{children}</ul>
-                        ),
-                        ol: ({ children }) => (
-                          <ol style={{
-                            paddingLeft: '1.5rem',
-                            margin: '1rem 0 1.5rem 0',
-                            counterReset: 'list-counter'
-                          }}>{children}</ol>
-                        ),
-                        li: ({ children }) => (
-                          <li style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: '0.75rem',
-                            marginBottom: '0.6rem',
-                            fontSize: '1rem',
-                            lineHeight: 1.7,
-                            opacity: 0.88
-                          }}>
-                            <span style={{
-                              display: 'inline-block',
-                              minWidth: '8px',
-                              height: '8px',
-                              borderRadius: '50%',
-                              backgroundColor: 'var(--primary)',
-                              marginTop: '0.55rem',
-                              flexShrink: 0
-                            }} />
-                            <span>{children}</span>
-                          </li>
-                        ),
-                        table: ({ children }) => (
-                          <div style={{
-                            width: '100%',
-                            overflowX: 'auto',
-                            borderRadius: '0.75rem',
-                            border: '1px solid var(--border)',
-                            boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-                            WebkitOverflowScrolling: 'touch',
-                            margin: '1.25rem 0',
-                            resize: 'horizontal',
-                            overflow: 'auto',
-                          }}>
-                            <table style={{
-                              width: '100%',
-                              borderCollapse: 'collapse',
-                              fontSize: '0.875rem',
-                              textAlign: 'left',
-                              tableLayout: 'auto',
-                               margin: 0,
-                             }}>{children}</table>
-                           </div>
-                         ),
-                         thead: ({ children }) => (
-                           <thead style={{
-                             backgroundColor: 'var(--sidebar-bg)',
-                             color: '#ffffff',
-                           }}>{children}</thead>
-                         ),
-                         th: ({ children }) => (
-                           <th style={{
-                             padding: '0.75rem 1rem',
-                             fontWeight: 800,
-                             fontSize: '0.72rem',
-                             textTransform: 'uppercase',
-                             letterSpacing: '0.06em',
-                             whiteSpace: 'nowrap',
-                             borderRight: '1px solid rgba(255,255,255,0.12)',
-                             borderBottom: '2px solid rgba(255,255,255,0.15)',
-                             color: '#ffffff',
-                             position: 'relative',
-                             overflow: 'hidden',
-                             resize: 'horizontal',
-                             minWidth: '80px',
-                           }}>{children}</th>
-                         ),
-                         tbody: ({ children }) => (
-                           <tbody>{children}</tbody>
-                         ),
-                         tr: ({ children }: { children?: React.ReactNode }) => (
-                           <tr style={{ borderBottom: '1px solid var(--border)' }}
-                             onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--muted)')}
-                             onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                           >{children}</tr>
-                         ),
-                         td: ({ children }) => (
-                           <td style={{
-                             padding: '0.875rem 1.25rem',
-                             fontSize: '0.875rem',
-                             verticalAlign: 'top',
-                             lineHeight: 1.6,
-                             borderRight: '1px solid var(--border)',
-                             borderBottom: '1px solid var(--border)',
-                             wordBreak: 'break-word',
-                             minWidth: '100px',
-                           }}>{children}</td>
-                        ),
-                        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
-                        code({ node, inline, className, children, ...props }: any) {
-                          const match = /language-mermaid/.exec(className || '')
-                          if (!inline && match) {
-                            return (
-                              <div style={{ margin: '1.75rem 0 2rem' }}>
-                                <MermaidDiagram
-                                  chart={String(children).replace(/\n$/, '')}
-                                  onNodeClick={handleNodeClick}
-                                  onFixDiagram={handleFixDiagram}
-                                />
-                              </div>
-                            )
-                          }
-                          if (!inline) {
-                            // Extract language label from className e.g. "language-python"
-                            const lang = (className || '').replace('language-', '').trim()
-                            return (
-                              <div style={{
-                                margin: '0.65rem 0 0.85rem',
-                                borderRadius: '0.6rem',
-                                overflow: 'hidden',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                boxShadow: '0 3px 12px rgba(0,0,0,0.12)',
-                              }}>
-                                {/* Code block header bar */}
-                                <div style={{
-                                  background: '#161b22',
-                                  padding: '0.3rem 0.75rem',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '0.4rem',
-                                  borderBottom: '1px solid rgba(255,255,255,0.06)',
-                                }}>
-                                  {/* Traffic-light dots */}
-                                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff5f57', display: 'inline-block' }} />
-                                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#febc2e', display: 'inline-block' }} />
-                                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#28c840', display: 'inline-block' }} />
-                                  {lang && (
-                                    <span style={{
-                                      marginLeft: 'auto',
-                                      fontSize: '0.6rem',
-                                      fontWeight: 700,
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.1em',
-                                      color: 'rgba(255,255,255,0.35)',
-                                      fontFamily: 'monospace',
-                                    }}>{lang}</span>
-                                  )}
-                                </div>
-                                {/* Code body */}
-                                <div style={{
-                                  background: '#0d1117',
-                                  padding: '0.55rem 0.8rem',
-                                  overflowX: 'auto',
-                                  maxHeight: '380px',
-                                  overflowY: 'auto',
-                                }}>
-                                  <code style={{
-                                    color: '#e6edf3',
-                                    fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace",
-                                    fontSize: '0.78rem',
-                                    lineHeight: 1.5,
-                                    display: 'block',
-                                    whiteSpace: 'pre',
-                                  }} {...props}>{children}</code>
-                                </div>
-                              </div>
-                            )
-                          }
-                          // Inline code
-                          return (
-                            <code style={{
-                              backgroundColor: 'rgba(124,58,237,0.07)',
-                              color: 'var(--primary)',
-                              padding: '1px 6px',
-                              borderRadius: '4px',
-                              fontFamily: "'Fira Code', 'Consolas', monospace",
-                              fontSize: '0.82em',
-                              border: '1px solid rgba(124,58,237,0.15)',
-                            }} {...props}>{children}</code>
-                          )
-                        },
-                        a: ({ href, children }) => (
-                          <a href={href} target="_blank" rel="noopener noreferrer"
-                            style={{
-                              color: 'var(--primary)',
-                              fontWeight: 600,
-                              textDecoration: 'underline',
-                              textDecorationColor: 'rgba(124,58,237,0.3)'
-                            }}
-                          >{children}</a>
-                        ),
-                        hr: () => (
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '1rem',
-                            margin: '1.75rem 0',
-                          }}>
-                            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
-                            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-                          </div>
-                        ),
-                      }}
-                    >
-                      {activeMarkdown}
-                    </ReactMarkdown>
-                  </div>
-                  </>
-                )}
-                  </>
+                
+                {/* 1. Detailed Notes Tab */}
+                {activeTab === 'notes' && (
+                  !notesContent ? renderNotRequested('notes') : renderProse(notesContent)
                 )}
 
-                {activeTab === 'roadmap' && <div className="bg-card border rounded-[2rem] p-8 shadow-sm"><MermaidDiagram chart={note.roadmap} onNodeClick={handleNodeClick} diagramSource="roadmap" onFixDiagram={handleFixDiagram} /></div>}
-                {activeTab === 'mindmap' && <div className="bg-card border rounded-[2rem] p-8 shadow-sm"><MermaidDiagram chart={note.mind_map} onNodeClick={handleNodeClick} diagramSource="mindmap" onFixDiagram={handleFixDiagram} /></div>}
+                {/* 2. Exam Cram Tab */}
+                {activeTab === 'exam_cram' && (
+                  !examCramContent ? renderNotRequested('exam_cram') : renderProse(examCramContent)
+                )}
+
+                {/* 3. Presentation Tab */}
+                {activeTab === 'presentation' && (
+                  !presentationContent ? renderNotRequested('presentation') : renderProse(presentationContent)
+                )}
+
+                {/* 4. Study Roadmap Tab */}
+                {activeTab === 'roadmap' && (
+                  !note.roadmap ? renderNotRequested('roadmap') : (
+                    <div className="bg-card border rounded-[2rem] p-8 shadow-sm">
+                      <MermaidDiagram chart={note.roadmap} onNodeClick={handleNodeClick} diagramSource="roadmap" onFixDiagram={handleFixDiagram} />
+                    </div>
+                  )
+                )}
+
+                {/* 5. Concept Map Tab */}
+                {activeTab === 'mindmap' && (
+                  !note.mind_map ? renderNotRequested('mindmap') : (
+                    <div className="bg-card border rounded-[2rem] p-8 shadow-sm">
+                      <MermaidDiagram chart={note.mind_map} onNodeClick={handleNodeClick} diagramSource="mindmap" onFixDiagram={handleFixDiagram} />
+                    </div>
+                  )
+                )}
+
+                {/* 6. Knowledge Quiz Tab */}
                 {activeTab === 'quiz' && (
-                  <div className="space-y-10">
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
-                          Knowledge Quiz
-                        </h2>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {note.quizzes?.length || 0} questions — select an answer to check
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleGenerateMoreQuiz}
-                        disabled={generatingQuiz}
-                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
-                      >
-                        {generatingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                        More Questions
-                      </button>
-                    </div>
-
-                    {/* Empty state */}
-                    {(!note.quizzes || note.quizzes.length === 0) && (
-                      <div className="flex flex-col items-center justify-center py-20 text-center">
-                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                          <Trophy className="w-8 h-8 text-primary" />
+                  (!note.quizzes || note.quizzes.length === 0) ? renderNotRequested('quiz') : (
+                    <div className="space-y-10">
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+                            Knowledge Quiz
+                          </h2>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {note.quizzes?.length || 0} questions — select an answer to check
+                          </p>
                         </div>
-                        <p className="font-bold text-lg mb-2">No quiz questions yet</p>
-                        <p className="text-muted-foreground text-sm mb-6">Click &quot;More Questions&quot; to generate a quiz for this note.</p>
-                      </div>
-                    )}
-
-                    <QuizSection quizzes={note.quizzes || []} />
-                  </div>
-                )}
-
-                {activeTab === 'flashcards' && (
-                  <div className="space-y-10">
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
-                          Flashcard Deck
-                        </h2>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {note.flashcards?.length || 0} cards — click any card to flip
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleGenerateMoreFlashcards}
-                        disabled={generatingCards}
-                        className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
-                      >
-                        {generatingCards ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                        More Cards
-                      </button>
-                    </div>
-
-                    {/* Empty state */}
-                    {(!note.flashcards || note.flashcards.length === 0) && (
-                      <div className="flex flex-col items-center justify-center py-20 text-center">
-                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                          <Layers className="w-8 h-8 text-primary" />
-                        </div>
-                        <p className="font-bold text-lg mb-2">No flashcards yet</p>
-                        <p className="text-muted-foreground text-sm mb-6">Click &quot;More Cards&quot; to generate flashcards for this note.</p>
-                      </div>
-                    )}
-
-                    {/* Card grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {(note.flashcards || []).map((card, i) => (
-                        <motion.div
-                          key={i}
-                          className="cursor-pointer"
-                          style={{ perspective: '1200px', height: '200px' }}
-                          onClick={() => setFlippedCards(prev => ({ ...prev, [i]: !prev[i] }))}
-                        >
-                          <motion.div
-                            animate={{ rotateY: flippedCards[i] ? 180 : 0 }}
-                            transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-                            style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d' }}
-                          >
-                            {/* Front */}
-                            <div
-                              style={{ backfaceVisibility: 'hidden' }}
-                              className="absolute inset-0 bg-card border-2 border-border hover:border-primary/30 rounded-[2.5rem] p-8 flex flex-col justify-between shadow-sm transition-colors"
-                            >
-                              <span className="text-[9px] font-black uppercase tracking-widest text-primary/50">Concept</span>
-                              <p className="font-bold text-base leading-snug text-center">{card.front}</p>
-                              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 text-center">Tap to reveal</span>
-                            </div>
-                            {/* Back */}
-                            <div
-                              style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
-                              className="absolute inset-0 bg-primary rounded-[2.5rem] p-8 flex flex-col justify-between shadow-2xl"
-                            >
-                              <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Answer</span>
-                              <p className="font-bold text-base leading-snug text-center text-white">{card.back}</p>
-                              <div className="h-1 w-10 bg-white/20 rounded-full mx-auto" />
-                            </div>
-                          </motion.div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'podcast' && (
-                  <div className="max-w-2xl mx-auto py-12 px-4">
-                    {/* Player Card */}
-                    <div style={{
-                      background: 'var(--card)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '2rem',
-                      padding: '3rem',
-                      textAlign: 'center',
-                      boxShadow: '0 20px 60px rgba(0,0,0,0.1)'
-                    }}>
-                      {/* Icon */}
-                      <div style={{
-                        width: '100px', height: '100px',
-                        background: isSpeaking
-                          ? 'linear-gradient(135deg, var(--primary), #a78bfa)'
-                          : 'var(--foreground)',
-                        borderRadius: '2rem',
-                        display: 'flex', alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 2rem',
-                        transition: 'all 0.3s ease',
-                        boxShadow: isSpeaking
-                          ? '0 0 40px rgba(124,58,237,0.4)'
-                          : 'none'
-                      }}>
-                        <Mic style={{
-                          width: '40px', height: '40px',
-                          color: isSpeaking ? '#fff' : 'var(--primary)',
-                          animation: isSpeaking ? 'pulse 1s infinite' : 'none'
-                        }} />
-                      </div>
-
-                      {/* Title */}
-                      <h2 style={{
-                        fontFamily: "'Playfair Display', serif",
-                        fontSize: '1.75rem', fontWeight: 800,
-                        marginBottom: '0.5rem'
-                      }}>
-                        {isSpeaking ? 'Now Playing...' : isPaused ? 'Paused' : 'Audio Summary'}
-                      </h2>
-                      <p style={{
-                        color: 'var(--muted-foreground)',
-                        fontSize: '0.875rem',
-                        marginBottom: '2rem'
-                      }}>
-                        {note?.podcast_script
-                          ? 'Podcast script ready'
-                          : 'Reading study notes aloud'}
-                      </p>
-
-                      {/* Progress Bar */}
-                      <div style={{
-                        background: 'var(--muted)',
-                        borderRadius: '999px',
-                        height: '6px',
-                        margin: '0 0 2rem',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{
-                          background: 'var(--primary)',
-                          height: '100%',
-                          width: `${speechProgress}%`,
-                          borderRadius: '999px',
-                          transition: 'width 0.3s ease'
-                        }} />
-                      </div>
-
-                      {/* Controls */}
-                      <div style={{
-                        display: 'flex', gap: '1rem',
-                        justifyContent: 'center',
-                        alignItems: 'center'
-                      }}>
-                        {/* Stop */}
-                        <button onClick={handleStop}
-                          disabled={!isSpeaking && !isPaused}
-                          style={{
-                            width: '48px', height: '48px',
-                            borderRadius: '50%',
-                            border: '2px solid var(--border)',
-                            background: 'transparent',
-                            display: 'flex', alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            opacity: (!isSpeaking && !isPaused) ? 0.4 : 1
-                          }}>
-                          <VolumeX style={{ width: '20px', height: '20px' }} />
-                        </button>
-
-                        {/* Play / Pause main button */}
                         <button
-                          onClick={isSpeaking ? handlePause : handlePlay}
-                          style={{
-                            width: '72px', height: '72px',
-                            borderRadius: '50%',
-                            background: 'var(--primary)',
-                            border: 'none',
-                            display: 'flex', alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            boxShadow: '0 8px 24px rgba(124,58,237,0.35)',
-                            transition: 'transform 0.15s ease'
-                          }}
-                          onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.95)')}
-                          onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+                          onClick={handleGenerateMoreQuiz}
+                          disabled={generatingQuiz}
+                          className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
                         >
-                          {isSpeaking ? (
-                            <Pause style={{ width: '28px', height: '28px', color: '#fff' }} />
-                          ) : (
-                            <Play style={{ width: '28px', height: '28px', color: '#fff', marginLeft: '4px' }} />
-                          )}
+                          {generatingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                          More Questions
                         </button>
+                      </div>
+                      <QuizSection quizzes={note.quizzes || []} />
+                    </div>
+                  )
+                )}
 
-                        {/* Resume if paused */}
-                        {isPaused && (
-                          <button onClick={handlePlay}
+                {/* 7. Flashcard Deck Tab */}
+                {activeTab === 'flashcards' && (
+                  (!note.flashcards || note.flashcards.length === 0) ? renderNotRequested('flashcards') : (
+                    <div className="space-y-10">
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+                            Flashcard Deck
+                          </h2>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {note.flashcards?.length || 0} cards — click any card to flip
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleGenerateMoreFlashcards}
+                          disabled={generatingCards}
+                          className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {generatingCards ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                          More Cards
+                        </button>
+                      </div>
+
+                      {/* Card grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {(note.flashcards || []).map((card, i) => (
+                          <motion.div
+                            key={i}
+                            className="cursor-pointer"
+                            style={{ perspective: '1200px', height: '200px' }}
+                            onClick={() => setFlippedCards(prev => ({ ...prev, [i]: !prev[i] }))}
+                          >
+                            <motion.div
+                              animate={{ rotateY: flippedCards[i] ? 180 : 0 }}
+                              transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                              style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d' }}
+                            >
+                              {/* Front */}
+                              <div
+                                style={{ backfaceVisibility: 'hidden' }}
+                                className="absolute inset-0 bg-card border-2 border-border hover:border-primary/30 rounded-[2.5rem] p-8 flex flex-col justify-between shadow-sm transition-colors"
+                              >
+                                <span className="text-[9px] font-black uppercase tracking-widest text-primary/50">Concept</span>
+                                <p className="font-bold text-base leading-snug text-center">{card.front}</p>
+                                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 text-center">Tap to reveal</span>
+                              </div>
+                              {/* Back */}
+                              <div
+                                style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                                className="absolute inset-0 bg-primary rounded-[2.5rem] p-8 flex flex-col justify-between shadow-2xl"
+                              >
+                                <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Answer</span>
+                                <p className="font-bold text-base leading-snug text-center text-white">{card.back}</p>
+                                <div className="h-1 w-10 bg-white/20 rounded-full mx-auto" />
+                              </div>
+                            </motion.div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {/* 8. Audio Lab Tab */}
+                {activeTab === 'podcast' && (
+                  !note.podcast_script ? renderNotRequested('podcast') : (
+                    <div className="max-w-2xl mx-auto py-12 px-4">
+                      {/* Player Card */}
+                      <div style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '2rem',
+                        padding: '3rem',
+                        textAlign: 'center',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.1)'
+                      }}>
+                        {/* Icon */}
+                        <div style={{
+                          width: '100px', height: '100px',
+                          background: isSpeaking
+                            ? 'linear-gradient(135deg, var(--primary), #a78bfa)'
+                            : 'var(--foreground)',
+                          borderRadius: '2rem',
+                          display: 'flex items-center',
+                          justifyContent: 'center',
+                          margin: '0 auto 2rem',
+                          transition: 'all 0.3s ease',
+                          boxShadow: isSpeaking
+                            ? '0 0 40px rgba(124,58,237,0.4)'
+                            : 'none'
+                        }}>
+                          <Mic style={{
+                            width: '40px', height: '40px',
+                            color: isSpeaking ? '#fff' : 'var(--primary)',
+                            animation: isSpeaking ? 'pulse 1s infinite' : 'none',
+                            marginTop: '30px'
+                          }} />
+                        </div>
+
+                        {/* Title */}
+                        <h2 style={{
+                          fontFamily: "'Playfair Display', serif",
+                          fontSize: '1.75rem', fontWeight: 800,
+                          marginBottom: '0.5rem'
+                        }}>
+                          {isSpeaking ? 'Now Playing...' : isPaused ? 'Paused' : 'Audio Summary'}
+                        </h2>
+                        <p style={{
+                          color: 'var(--muted-foreground)',
+                          fontSize: '0.875rem',
+                          marginBottom: '2rem'
+                        }}>
+                          {note?.podcast_script
+                            ? 'Podcast script ready'
+                            : 'Reading study notes aloud'}
+                        </p>
+
+                        {/* Progress Bar */}
+                        <div style={{
+                          background: 'var(--muted)',
+                          borderRadius: '999px',
+                          height: '6px',
+                          margin: '0 0 2rem',
+                          overflow: 'hidden'
+                        }}>
+                          <div style={{
+                            background: 'var(--primary)',
+                            height: '100%',
+                            width: `${speechProgress}%`,
+                            borderRadius: '999px',
+                            transition: 'width 0.3s ease'
+                          }} />
+                        </div>
+
+                        {/* Controls */}
+                        <div style={{
+                          display: 'flex', gap: '1rem',
+                          justifyContent: 'center',
+                          alignItems: 'center'
+                        }}>
+                          {/* Stop */}
+                          <button onClick={handleStop}
+                            disabled={!isSpeaking && !isPaused}
                             style={{
                               width: '48px', height: '48px',
                               borderRadius: '50%',
-                              border: '2px solid var(--primary)',
+                              border: '2px solid var(--border)',
                               background: 'transparent',
                               display: 'flex', alignItems: 'center',
                               justifyContent: 'center',
                               cursor: 'pointer',
-                              color: 'var(--primary)'
+                              opacity: (!isSpeaking && !isPaused) ? 0.4 : 1
                             }}>
-                            <Volume2 style={{ width: '20px', height: '20px' }} />
+                            <VolumeX style={{ width: '20px', height: '20px' }} />
                           </button>
+
+                          {/* Play / Pause main button */}
+                          <button
+                            onClick={isSpeaking ? handlePause : handlePlay}
+                            style={{
+                              width: '72px', height: '72px',
+                              borderRadius: '50%',
+                              background: 'var(--primary)',
+                              border: 'none',
+                              display: 'flex', alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              boxShadow: '0 8px 24px rgba(124,58,237,0.35)',
+                              transition: 'transform 0.15s ease'
+                            }}
+                            onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.95)')}
+                            onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+                          >
+                            {isSpeaking ? (
+                              <Pause style={{ width: '28px', height: '28px', color: '#fff' }} />
+                            ) : (
+                              <Play style={{ width: '28px', height: '28px', color: '#fff', marginLeft: '4px' }} />
+                            )}
+                          </button>
+
+                          {/* Resume if paused */}
+                          {isPaused && (
+                            <button onClick={handlePlay}
+                              style={{
+                                width: '48px', height: '48px',
+                                borderRadius: '50%',
+                                border: '2px solid var(--primary)',
+                                background: 'transparent',
+                                display: 'flex', alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                color: 'var(--primary)'
+                              }}>
+                              <Volume2 style={{ width: '20px', height: '20px' }} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Speed selector */}
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.4rem', marginTop: '1.25rem' }}>
+                          {[0.75, 1, 1.25, 1.5, 2].map(s => (
+                            <button
+                              key={s}
+                              onClick={() => { setTtsSpeed(s); speedRef.current = s; }}
+                              style={{
+                                padding: '0.3rem 0.65rem',
+                                borderRadius: '0.5rem',
+                                border: ttsSpeed === s ? '2px solid var(--primary)' : '2px solid var(--border)',
+                                background: ttsSpeed === s ? 'var(--primary)' : 'transparent',
+                                color: ttsSpeed === s ? '#fff' : 'var(--muted-foreground)',
+                                fontSize: '0.7rem',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              {s}×
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Progress text */}
+                        {(isSpeaking || isPaused || speechProgress > 0) && (
+                          <p style={{
+                            marginTop: '1rem',
+                            fontSize: '0.8rem',
+                            color: 'var(--muted-foreground)'
+                          }}>
+                            {speechProgress}% complete
+                            {isPaused ? ' — Paused' : ''}
+                          </p>
                         )}
                       </div>
 
-                      {/* Speed selector */}
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: '0.4rem', marginTop: '1.25rem' }}>
-                        {[0.75, 1, 1.25, 1.5, 2].map(s => (
-                          <button
-                            key={s}
-                            onClick={() => { setTtsSpeed(s); speedRef.current = s; }}
-                            style={{
-                              padding: '0.3rem 0.65rem',
-                              borderRadius: '0.5rem',
-                              border: ttsSpeed === s ? '2px solid var(--primary)' : '2px solid var(--border)',
-                              background: ttsSpeed === s ? 'var(--primary)' : 'transparent',
-                              color: ttsSpeed === s ? '#fff' : 'var(--muted-foreground)',
-                              fontSize: '0.7rem',
-                              fontWeight: 800,
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            {s}×
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Progress text */}
-                      {(isSpeaking || isPaused || speechProgress > 0) && (
-                        <p style={{
-                          marginTop: '1rem',
-                          fontSize: '0.8rem',
-                          color: 'var(--muted-foreground)'
+                      {/* Script Preview */}
+                      {note?.podcast_script && (
+                        <div style={{
+                          marginTop: '2rem',
+                          background: 'var(--card)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '1.5rem',
+                          padding: '2rem',
+                          maxHeight: '420px',
+                          overflowY: 'auto',
+                          textAlign: 'left'
                         }}>
-                          {speechProgress}% complete
-                          {isPaused ? ' — Paused' : ''}
-                        </p>
-                      )}
-                    </div>
+                          <p style={{
+                            fontSize: '0.7rem',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.15em',
+                            color: 'var(--primary)',
+                            marginBottom: '1.5rem'
+                          }}>Podcast Script</p>
 
-                    {/* Script Preview */}
-                    {note?.podcast_script && (
-                      <div style={{
-                        marginTop: '2rem',
-                        background: 'var(--card)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '1.5rem',
-                        padding: '2rem',
-                        maxHeight: '420px',
-                        overflowY: 'auto',
-                        textAlign: 'left'
-                      }}>
-                        <p style={{
-                          fontSize: '0.7rem',
-                          fontWeight: 800,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.15em',
-                          color: 'var(--primary)',
-                          marginBottom: '1.5rem'
-                        }}>Podcast Script</p>
+                          {/* Render each line as a styled dialogue bubble */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                            {note.podcast_script
+                              .split('\n')
+                              .map(line => line.trim())
+                              .filter(line => line.length > 0)
+                              .map((line, idx) => {
+                                const cleaned = line.replace(/\*\*/g, '')
+                                const mayaMatch = cleaned.match(/^MAYA:\s*(.+)/)
+                                const alexMatch = cleaned.match(/^ALEX:\s*(.+)/)
 
-                        {/* Render each line as a styled dialogue bubble */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                          {note.podcast_script
-                            .split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line.length > 0)
-                            .map((line, idx) => {
-                              // Strip markdown bold markers: **MAYA:** text → speaker + text
-                              const cleaned = line.replace(/\*\*/g, '')
-                              const mayaMatch = cleaned.match(/^MAYA:\s*(.+)/)
-                              const alexMatch = cleaned.match(/^ALEX:\s*(.+)/)
-
-                              if (mayaMatch) {
+                                if (mayaMatch) {
                                   return (
                                     <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
                                       <span style={{
@@ -1458,58 +1506,62 @@ export default function NoteView({ id }: { id: string }) {
                                         minWidth: '52px',
                                         textAlign: 'center'
                                       }}>MAYA</span>
-                                    <p style={{ fontSize: '0.9rem', lineHeight: 1.7, margin: 0, opacity: 0.9 }}>
-                                      {mayaMatch[1]}
-                                    </p>
-                                  </div>
-                                )
-                              }
+                                      <p style={{ fontSize: '0.9rem', lineHeight: 1.7, margin: 0, opacity: 0.9 }}>
+                                        {mayaMatch[1]}
+                                      </p>
+                                    </div>
+                                  )
+                                }
 
-                              if (alexMatch) {
+                                if (alexMatch) {
+                                  return (
+                                    <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                                      <span style={{
+                                        flexShrink: 0,
+                                        fontSize: '0.65rem',
+                                        fontWeight: 900,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.08em',
+                                        color: '#ffffff',
+                                        background: '#1a1a2e',
+                                        borderRadius: '0.5rem',
+                                        padding: '0.2rem 0.5rem',
+                                        marginTop: '0.15rem',
+                                        minWidth: '52px',
+                                        textAlign: 'center'
+                                      }}>ALEX</span>
+                                      <p style={{ fontSize: '0.9rem', lineHeight: 1.7, margin: 0, opacity: 0.9 }}>
+                                        {alexMatch[1]}
+                                      </p>
+                                    </div>
+                                  )
+                                }
+
                                 return (
-                                  <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                                    <span style={{
-                                      flexShrink: 0,
-                                      fontSize: '0.65rem',
-                                      fontWeight: 900,
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.08em',
-                                      color: '#ffffff',
-                                      background: '#1a1a2e',
-                                      borderRadius: '0.5rem',
-                                      padding: '0.2rem 0.5rem',
-                                      marginTop: '0.15rem',
-                                      minWidth: '52px',
-                                      textAlign: 'center'
-                                    }}>ALEX</span>
-                                    <p style={{ fontSize: '0.9rem', lineHeight: 1.7, margin: 0, opacity: 0.9 }}>
-                                      {alexMatch[1]}
-                                    </p>
-                                  </div>
+                                  <p key={idx} style={{
+                                    fontSize: '0.8rem',
+                                    color: 'var(--muted-foreground)',
+                                    fontStyle: 'italic',
+                                    margin: 0,
+                                    paddingLeft: '0.5rem',
+                                    borderLeft: '2px solid var(--border)'
+                                  }}>
+                                    {cleaned}
+                                  </p>
                                 )
-                              }
-
-                              // Non-dialogue line (stage direction, blank separator, etc.)
-                              return (
-                                <p key={idx} style={{
-                                  fontSize: '0.8rem',
-                                  color: 'var(--muted-foreground)',
-                                  fontStyle: 'italic',
-                                  margin: 0,
-                                  paddingLeft: '0.5rem',
-                                  borderLeft: '2px solid var(--border)'
-                                }}>
-                                  {cleaned}
-                                </p>
-                              )
-                            })}
+                              })}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )
                 )}
 
-                {activeTab === 'gallery' && <GallerySection content={notesContent} />}
+                {/* 9. Visual Gallery Tab */}
+                {activeTab === 'gallery' && (
+                  !notesContent ? renderNotRequested('gallery') : <GallerySection content={notesContent} />
+                )}
+
               </motion.article>
             </AnimatePresence>
           </div>
