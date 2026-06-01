@@ -85,6 +85,29 @@ export default function UploadPage() {
   const [generationType, setGenerationType] = useState('all');
   const [lastProcessType, setLastProcessType] = useState<string>('');
 
+  const isOptionSelected = (id: string) => {
+    return generationType.split(',').map(x => x.trim()).includes(id);
+  };
+
+  const toggleGenerationType = (id: string) => {
+    if (id === 'all') {
+      setGenerationType('all');
+      return;
+    }
+    const current = generationType.split(',').map(x => x.trim()).filter(Boolean);
+    let updated = current.filter(x => x !== 'all');
+    if (updated.includes(id)) {
+      updated = updated.filter(x => x !== id);
+    } else {
+      updated.push(id);
+    }
+    if (updated.length === 0) {
+      setGenerationType('all');
+    } else {
+      setGenerationType(updated.join(','));
+    }
+  };
+
   const generationOptions = [
     { id: 'all', label: 'Full Mastery Package', desc: 'Detailed notes + exam cram + presentation + quiz + more' },
     { id: 'exam_cram', label: 'Exam Tomorrow', desc: 'Ultra-short cram sheet (tables & facts only)' },
@@ -436,8 +459,8 @@ export default function UploadPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {generationOptions.map(opt => (
                           <button
-                            key={opt.id} disabled={loading} onClick={() => setGenerationType(opt.id)}
-                            className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
+                            key={opt.id} disabled={loading} onClick={() => toggleGenerationType(opt.id)}
+                            className={`text-left p-4 rounded-2xl border transition-all ${isOptionSelected(opt.id) ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
                               }`}
                           >
                             <p className="text-xs font-bold mb-0.5">{opt.label}</p>
@@ -488,8 +511,8 @@ export default function UploadPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {generationOptions.map(opt => (
                           <button
-                            key={opt.id} disabled={loading} onClick={() => setGenerationType(opt.id)}
-                            className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
+                            key={opt.id} disabled={loading} onClick={() => toggleGenerationType(opt.id)}
+                            className={`text-left p-4 rounded-2xl border transition-all ${isOptionSelected(opt.id) ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
                               }`}
                           >
                             <p className="text-xs font-bold mb-0.5">{opt.label}</p>
@@ -517,8 +540,8 @@ export default function UploadPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {generationOptions.map(opt => (
                           <button
-                            key={opt.id} disabled={loading} onClick={() => setGenerationType(opt.id)}
-                            className={`text-left p-4 rounded-2xl border transition-all ${generationType === opt.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
+                            key={opt.id} disabled={loading} onClick={() => toggleGenerationType(opt.id)}
+                            className={`text-left p-4 rounded-2xl border transition-all ${isOptionSelected(opt.id) ? 'border-primary bg-primary/5 shadow-sm' : 'border-border hover:border-primary/20 bg-card'
                               }`}
                           >
                             <p className="text-xs font-bold mb-0.5">{opt.label}</p>
