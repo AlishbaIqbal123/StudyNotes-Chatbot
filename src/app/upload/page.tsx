@@ -148,12 +148,14 @@ export default function UploadPage() {
     let p = 0;
     let s = 0;
     let detailedIdx = 0;
+    let tickCount = 0;
     
     setDynamicStatusText(steps[0]);
 
     const iv = setInterval(() => {
+      tickCount++;
       if (p < 90) {
-        p += Math.random() * 8 + 2;
+        p += Math.random() * 6 + 3;
         if (p >= 90) p = 90;
         
         if (s < steps.length - 1 && p > (s + 1) * 18) {
@@ -162,18 +164,17 @@ export default function UploadPage() {
         }
       } else {
         // Slow crawl above 90%
-        p += Math.random() * 0.3 + 0.1;
+        p += Math.random() * 0.15 + 0.05;
         if (p > 99) p = 99;
         
-        // Cycle detailed steps every 4 ticks (~5 seconds)
-        const tick = Math.round((p - 90) * 10);
-        if (tick % 4 === 0) {
+        // Cycle detailed steps every 8 ticks (~2.8 seconds at 350ms tick)
+        if (tickCount % 8 === 0) {
           setDynamicStatusText(detailedSteps[detailedIdx % detailedSteps.length]);
           detailedIdx++;
         }
       }
       setProgress(p);
-    }, 1200);
+    }, 350);
     return iv;
   };
 
