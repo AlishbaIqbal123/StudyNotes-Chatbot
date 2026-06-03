@@ -628,7 +628,27 @@ export default function NoteView({ id }: { id: string }) {
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath]}
           rehypePlugins={[rehypeKatex]}
+          urlTransform={(url) => {
+            if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+              return url;
+            }
+            return '';
+          }}
           components={{
+            img: ({ src, alt }) => {
+              if (!src) return null;
+              return (
+                <div className="my-6 flex flex-col items-center">
+                  <img
+                    src={src}
+                    alt={alt || "Study illustration"}
+                    className="max-w-full h-auto rounded-[1.5rem] border border-border shadow-md object-contain max-h-[480px] bg-card"
+                    loading="lazy"
+                  />
+                  {alt && <span className="text-[10px] text-muted-foreground/60 mt-2 font-bold uppercase tracking-widest">{alt}</span>}
+                </div>
+              );
+            },
             h1: ({ children }) => (
               <h1 style={{
                 fontFamily: "'Playfair Display', serif",
