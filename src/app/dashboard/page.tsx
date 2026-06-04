@@ -437,7 +437,7 @@ export default function DashboardPage() {
                         {/* Pinterest Pin Visual */}
                         <div className="relative overflow-hidden aspect-[16/11] w-full bg-muted/10 min-h-[220px]">
                           <img
-                            src={`https://image.pollinations.ai/prompt/${encodeURIComponent(note.visual_prompt || note.title || 'academic study artwork')}?width=600&height=400&nologo=true&seed=${note.id}`}
+                            src={`https://pollinations.ai/p/${encodeURIComponent(note.visual_prompt || note.title || 'academic study artwork')}?width=600&height=400&nologo=true&seed=${note.id}`}
                             className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                             alt={note.title}
                             loading="lazy"
