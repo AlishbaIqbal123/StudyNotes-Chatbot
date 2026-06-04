@@ -427,6 +427,7 @@ CRITICAL RULES — FOLLOW EXACTLY:
    - Use style commands at the end of the diagram to style node classes in Royal Blue and Gold theme colors.
 10. If the source material references specific figures, visual charts, or data plots, you MUST summarize the visual data in a comparison table and create a matching Mermaid diagram next to it.
 11. COMPACT CODE SNIPPETS: If code block examples are necessary, make them extremely brief, highly focused on the core concept, and clean (maximum 10-15 lines). Never output long, verbose, or boilerplate-heavy code blocks. Keep code blocks neat, readable, and compact.
+12. NO RAW HTML LINE BREAKS: Do NOT use raw HTML tags such as <br> or < br > or <br /> for line breaks. Always use standard markdown newlines (e.g., two spaces followed by a newline, or double newlines for paragraph breaks).
 
  
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

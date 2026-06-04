@@ -252,7 +252,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                       },
                     }}
                   >
-                    {m.content ? m.content.replace(/<br\s*\/?>/gi, '  \n').replace(/&nbsp;/g, ' ') : ''}
+                    {m.content ? m.content.replace(/<\s*br\s*\/?>/gi, '  \n').replace(/&nbsp;/g, ' ') : ''}
                   </ReactMarkdown>
                 </div>
               )}

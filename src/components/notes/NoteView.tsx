@@ -542,12 +542,17 @@ export default function NoteView({ id }: { id: string }) {
   if (loading) return <NoteViewSkeleton />;
   if (error || !note) return <div className="h-screen flex items-center justify-center bg-background text-red-500">{error || 'Note not found'}</div>;
 
-  const fixMarkdownImages = (text: string) => {
-    return text.replace(/!\[(.*?)\]\s*\n*\s*\((data:image\/[^)]+|https?:\/\/[^)]+)\)/gi, '![$1]($2)');
+  const preprocessMarkdown = (text: string) => {
+    if (!text) return '';
+    return text
+      // Fix markdown image typos
+      .replace(/!\[(.*?)\]\s*\n*\s*\((data:image\/[^)]+|https?:\/\/[^)]+)\)/gi, '![$1]($2)')
+      // Replace raw HTML br tags (including spaced ones like < br >) with actual markdown line breaks
+      .replace(/<\s*br\s*\/?>/gi, '  \n');
   };
 
   const rawNotes = (note.simplified_notes || note.simplified_content || "").trim();
-  const notesContent = fixMarkdownImages(
+  const notesContent = preprocessMarkdown(
     rawNotes
       // Remove ## Knowledge Quiz / ## [Knowledge Quiz] sections and everything after until next ##
       .replace(/^##\s*\[?Knowledge Quiz\]?[\s\S]*?(?=\n##\s|\n#\s|$)/gim, '')
@@ -568,8 +573,8 @@ export default function NoteView({ id }: { id: string }) {
       .trim()
   );
 
-  const examCramContent = fixMarkdownImages((note.exam_cram_notes || '').trim());
-  const presentationContent = fixMarkdownImages((note.presentation_notes || '').trim());
+  const examCramContent = preprocessMarkdown((note.exam_cram_notes || '').trim());
+  const presentationContent = preprocessMarkdown((note.presentation_notes || '').trim());
 
   const renderNotRequested = (tab: TabType) => {
     const metaMap: Record<TabType, { key: SectionKey; type: string; label: string }> = {
