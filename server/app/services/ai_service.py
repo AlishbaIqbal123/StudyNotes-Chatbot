@@ -518,7 +518,9 @@ SOURCE:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 RULES:
-- Each question tests a SPECIFIC fact from the source.
+- Each question must be a complete interrogative question (starting with What, How, Why, Which, When, etc.).
+- The question text MUST NOT contain, reveal, or leak the correct answer. Never include the correct answer or the answer choice itself in the wording of the question.
+- Do NOT add any markdown formatting, asterisks (like **), or indicator labels (like "(Correct)") to the option text. Options must be plain text.
 - One correct answer, three plausible wrong answers.
 - Output EXACTLY 20 lines, nothing else.
 - Format: Question | OptionA | OptionB | OptionC | OptionD | CorrectLetter
@@ -744,10 +746,14 @@ def _parse_quiz(text: str) -> List[Dict]:
             continue
         parts = [p.strip() for p in line.split('|')]
         if len(parts) >= 6 and parts[0] and len(parts[0]) > 5:
+            # Clean up double asterisks or styling from question, options, and answer
+            clean_question = parts[0].replace("**", "").replace("__", "").strip()
+            clean_options = [opt.replace("**", "").replace("__", "").strip() for opt in parts[1:5]]
+            clean_answer = parts[5].replace("**", "").replace("__", "").strip().upper()
             quizzes.append({
-                "question": parts[0],
-                "options": parts[1:5],
-                "answer": parts[5]
+                "question": clean_question,
+                "options": clean_options,
+                "answer": clean_answer
             })
     return quizzes
 
@@ -1019,7 +1025,9 @@ SOURCE:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 RULES:
-- Each question tests a SPECIFIC fact from the source.
+- Each question must be a complete interrogative question (starting with What, How, Why, Which, When, etc.).
+- The question text MUST NOT contain, reveal, or leak the correct answer. Never include the correct answer or the answer choice itself in the wording of the question.
+- Do NOT add any markdown formatting, asterisks (like **), or indicator labels (like "(Correct)") to the option text. Options must be plain text.
 - One correct answer, three plausible wrong answers.
 - Output EXACTLY 10 lines, nothing else.
 - Format: Question | OptionA | OptionB | OptionC | OptionD | CorrectLetter
