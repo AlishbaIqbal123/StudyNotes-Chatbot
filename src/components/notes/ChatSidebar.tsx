@@ -8,6 +8,7 @@ import { ChatMessage } from '@/types/note.types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CHAT_SUGGESTED_PILLS, buildContextualPrompt } from '@/lib/chatPrompts';
+import MermaidDiagram from './MermaidDiagram';
 
 interface ChatSidebarProps {
   history: ChatMessage[];
@@ -164,37 +165,94 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
-                      // Tables in chat — compact and scrollable
+                      // Tables in chat — compact, resizable and scrollable
                       table: ({ children }) => (
-                        <div style={{ overflowX: 'auto', margin: '0.5rem 0', borderRadius: '0.5rem', border: '1px solid rgba(0,0,0,0.1)' }}>
-                          <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.75rem', width: '100%' }}>
+                        <div style={{ 
+                          width: '100%',
+                          overflowX: 'auto', 
+                          margin: '0.75rem 0', 
+                          borderRadius: '0.75rem', 
+                          border: '1px solid var(--border)',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                          WebkitOverflowScrolling: 'touch',
+                          resize: 'horizontal',
+                          overflow: 'auto'
+                        }}>
+                          <table style={{ 
+                            borderCollapse: 'collapse', 
+                            fontSize: '0.75rem', 
+                            width: '100%',
+                            tableLayout: 'auto'
+                          }}>
                             {children}
                           </table>
                         </div>
                       ),
                       th: ({ children }) => (
-                        <th style={{ padding: '0.4rem 0.6rem', background: 'var(--primary)', color: '#fff', fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap', borderRight: '1px solid rgba(255,255,255,0.2)' }}>
+                        <th style={{ 
+                          padding: '0.5rem 0.75rem', 
+                          background: 'var(--primary)', 
+                          color: '#fff', 
+                          fontWeight: 800, 
+                          fontSize: '0.7rem', 
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          whiteSpace: 'nowrap', 
+                          borderRight: '1px solid rgba(255,255,255,0.15)',
+                          borderBottom: '2px solid rgba(0,0,0,0.1)',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          resize: 'horizontal',
+                          minWidth: '70px'
+                        }}>
                           {children}
+                          {/* Resize grip indicator */}
+                          <span style={{
+                            position: 'absolute',
+                            right: 0,
+                            top: '25%',
+                            height: '50%',
+                            width: '2px',
+                            background: 'rgba(255,255,255,0.3)',
+                            cursor: 'col-resize'
+                          }} />
                         </th>
                       ),
                       td: ({ children }) => (
-                        <td style={{ padding: '0.4rem 0.6rem', borderBottom: '1px solid rgba(0,0,0,0.06)', borderRight: '1px solid rgba(0,0,0,0.06)', verticalAlign: 'top', wordBreak: 'break-word' }}>
+                        <td style={{ 
+                          padding: '0.5rem 0.75rem', 
+                          borderBottom: '1px solid var(--border)', 
+                          borderRight: '1px solid var(--border)', 
+                          verticalAlign: 'top', 
+                          wordBreak: 'break-word',
+                          minWidth: '85px'
+                        }}>
                           {children}
                         </td>
                       ),
-                      // Code blocks — scrollable
-                      code: ({ className, children, ...props }: React.ComponentProps<'code'>) => (
-                        <code
-                          style={{ fontSize: '0.75rem', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}
-                          className={className}
-                          {...props}
-                        >
-                          {children}
-                        </code>
-                      ),
+                      // Code blocks — scrollable or rendered diagram
+                      code: ({ className, children, ...props }: React.ComponentProps<'code'>) => {
+                        const match = /language-mermaid/.exec(className || '');
+                        if (match) {
+                          return (
+                            <div className="my-4 w-full overflow-hidden">
+                              <MermaidDiagram chart={String(children).replace(/\n$/, '')} />
+                            </div>
+                          );
+                        }
+                        return (
+                          <code
+                            style={{ fontSize: '0.75rem', wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}
+                            className={className}
+                            {...props}
+                          >
+                            {children}
+                          </code>
+                        );
+                      },
                     }}
                   >
-                    {m.content}
+                    {m.content ? m.content.replace(/<br\s*\/?>/gi, '  \n').replace(/&nbsp;/g, ' ') : ''}
                   </ReactMarkdown>
                 </div>
               )}

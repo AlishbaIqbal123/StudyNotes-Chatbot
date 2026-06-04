@@ -103,4 +103,17 @@ export const studyApi = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
+
+  async getQuotaStatus(): Promise<{
+    status: string;
+    is_free_tier: boolean;
+    limit?: number;
+    limit_remaining?: number;
+    usage?: number;
+    recommendation: string;
+  }> {
+    const res = await fetch(`${API_BASE_URL}/quota-status`, { method: 'GET', cache: 'no-store' });
+    if (!res.ok) throw new Error('Quota endpoint unavailable');
+    return res.json();
+  },
 };

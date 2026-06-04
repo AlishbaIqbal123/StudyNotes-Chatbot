@@ -169,15 +169,44 @@ def _extract_pdf_figures(content: bytes, max_images: int = 8) -> List[Dict]:
                 if len(figures) >= max_images or not page.images:
                     continue
                 try:
-                    page_image = page.to_image(resolution=110)
-                    pil = page_image.original
-                    for img in page.images[:3]:
+                    # Sort images on the page by top-to-bottom and left-to-right
+                    sorted_imgs = sorted(page.images, key=lambda x: (x.get("top", 0), x.get("x0", 0)))
+                    for img in sorted_imgs[:5]:
                         if len(figures) >= max_images:
                             break
-                        x0, top, x1, bottom = img["x0"], img["top"], img["x1"], img["bottom"]
-                        crop = pil.crop((x0, top, x1, bottom))
-                        if crop.width < 60 or crop.height < 60:
+                        x0, top, x1, bottom = img.get("x0"), img.get("top"), img.get("x1"), img.get("bottom")
+                        if x0 is None or top is None or x1 is None or bottom is None:
                             continue
+                        
+                        # Ensure bounding box coordinates are ordered and valid
+                        x0_c = min(x0, x1)
+                        x1_c = max(x0, x1)
+                        top_c = min(top, bottom)
+                        bottom_c = max(top, bottom)
+                        
+                        # Add a tiny padding to prevent borders from being clipped
+                        padding = 2
+                        x0_c = max(0, x0_c - padding)
+                        top_c = max(0, top_c - padding)
+                        x1_c = min(page.width, x1_c + padding)
+                        bottom_c = min(page.height, bottom_c + padding)
+                        
+                        # Check for degenerate bounding box
+                        if (x1_c - x0_c) < 30 or (bottom_c - top_c) < 30:
+                            continue
+                            
+                        # If the image covers more than 95% of the page width and height, it's likely a full-page scan, not a figure
+                        if (x1_c - x0_c) > 0.95 * page.width and (bottom_c - top_c) > 0.95 * page.height:
+                            continue
+                            
+                        # Crop the page first - pdfplumber handles page rotation, CropBox translation, etc. natively
+                        cropped_page = page.crop((x0_c, top_c, x1_c, bottom_c), strict=False)
+                        cropped_image = cropped_page.to_image(resolution=150)
+                        crop = cropped_image.original
+                        
+                        if crop.width < 50 or crop.height < 50:
+                            continue
+                            
                         buf = io.BytesIO()
                         crop.save(buf, format="PNG")
                         b64 = base64.b64encode(buf.getvalue()).decode("ascii")

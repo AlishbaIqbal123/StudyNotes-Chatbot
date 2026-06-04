@@ -1,0 +1,24 @@
+{
+  "name": "LuminaStudy",
+  "short_name": "LuminaStudy",
+  "description": "Transform PDFs, YouTube videos, and notes into beautiful Pinterest-style AI flashcards, quizzes & summaries.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#E60023",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

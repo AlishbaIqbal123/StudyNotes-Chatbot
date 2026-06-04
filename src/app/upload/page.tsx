@@ -84,6 +84,14 @@ export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
   const [generationType, setGenerationType] = useState('all');
   const [lastProcessType, setLastProcessType] = useState<string>('');
+  const [quotaStatus, setQuotaStatus] = useState<{
+    status: string;
+    is_free_tier: boolean;
+    limit?: number;
+    limit_remaining?: number;
+    usage?: number;
+    recommendation: string;
+  } | null>(null);
 
   const isOptionSelected = (id: string) => {
     return generationType.split(',').map(x => x.trim()).includes(id);
@@ -132,6 +140,19 @@ export default function UploadPage() {
       void pingBackend();
     }
   }, [inputReady, backendStatus, pingBackend]);
+
+  // Load quota status from OpenRouter via server status endpoint
+  useEffect(() => {
+    const loadQuota = async () => {
+      try {
+        const data = await studyApi.getQuotaStatus();
+        setQuotaStatus(data);
+      } catch (err) {
+        console.error("Failed to load API quota status:", err);
+      }
+    };
+    void loadQuota();
+  }, []);
 
   const getExistingNotesCount = async (): Promise<number> => {
     try {
@@ -470,6 +491,22 @@ export default function UploadPage() {
                         ))}
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">{generationTip}</p>
+                      {quotaStatus && (
+                        <div className="mt-4 p-4 rounded-2xl bg-primary/5 border border-primary/20 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black uppercase tracking-[0.15em] text-primary flex items-center gap-1.5">
+                              <Sparkles className="w-3 h-3 animate-pulse" />
+                              Atelier Performance Advisory
+                            </span>
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/10">
+                              {quotaStatus.status}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            {quotaStatus.recommendation}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <button disabled={!file || loading} onClick={() => handleProcess('file')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Initiate Synthesis</button>
                   </motion.div>
@@ -522,6 +559,22 @@ export default function UploadPage() {
                         ))}
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">{generationTip}</p>
+                      {quotaStatus && (
+                        <div className="mt-4 p-4 rounded-2xl bg-primary/5 border border-primary/20 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black uppercase tracking-[0.15em] text-primary flex items-center gap-1.5">
+                              <Sparkles className="w-3 h-3 animate-pulse" />
+                              Atelier Performance Advisory
+                            </span>
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/10">
+                              {quotaStatus.status}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            {quotaStatus.recommendation}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <button
                       disabled={loading || manualTranscript.trim().length < 50}
@@ -551,6 +604,22 @@ export default function UploadPage() {
                         ))}
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">{generationTip}</p>
+                      {quotaStatus && (
+                        <div className="mt-4 p-4 rounded-2xl bg-primary/5 border border-primary/20 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black uppercase tracking-[0.15em] text-primary flex items-center gap-1.5">
+                              <Sparkles className="w-3 h-3 animate-pulse" />
+                              Atelier Performance Advisory
+                            </span>
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/10">
+                              {quotaStatus.status}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            {quotaStatus.recommendation}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <button disabled={rawText.length < 50 || loading} onClick={() => handleProcess('text')} className="w-full py-5 bg-primary text-white rounded-[1.5rem] font-bold shadow-lg shadow-primary/20 disabled:opacity-30">Harmonize Concepts</button>
                   </motion.div>

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/theme/ThemeToggle';
+import PWAInstallButton from '@/components/PWAInstallButton';
 
 /* ── Data ─────────────────────────────────────── */
 const features = [
@@ -86,6 +87,7 @@ export default function LandingPage() {
            </div>
 
            <div className="flex items-center gap-4">
+              <PWAInstallButton compact={true} />
               <ThemeToggle />
               <Link href="/login" className="text-[10px] font-black uppercase tracking-widest text-foreground hover:opacity-60 transition-opacity hidden sm:block" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 Login

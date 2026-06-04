@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import ThemeToggle from '../theme/ThemeToggle';
 import { useAuth } from '../auth/AuthProvider';
+import PWAInstallButton from '../PWAInstallButton';
 
 const navItems = [
   { icon: LayoutGrid,  label: 'Knowledge Board',  path: '/dashboard' },
@@ -131,7 +132,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* ── MAIN CONTENT ── */}
-      <div className="flex-1 flex flex-col min-w-0 transition-all duration-500" style={{ marginLeft: sidebarW }}>
+      <div 
+        className="flex-1 flex flex-col min-w-0 transition-all duration-500 ml-0 lg:ml-[var(--sidebar-width)]" 
+        style={{ '--sidebar-width': `${sidebarW}px` } as React.CSSProperties}
+      >
         <header className="sticky top-0 z-40 h-20 flex items-center justify-between px-6 lg:px-12 bg-background/80 backdrop-blur-2xl border-b border-border">
            <div className="flex items-center gap-4 lg:hidden">
               <button onClick={() => setMobileMenuOpen(true)} className="p-2.5 rounded-2xl bg-card border border-border shadow-sm">
@@ -149,6 +153,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
            </div>
 
            <div className="flex items-center gap-4 lg:gap-6">
+              <PWAInstallButton compact={true} />
               <ThemeToggle />
               <Link href="/upload" className="flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-primary text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
                  <Plus className="w-4 h-4" />
@@ -190,7 +195,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                        <Link key={item.path} href={item.path} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-5 p-4 rounded-2xl text-lg font-bold ${pathname === item.path ? 'bg-primary text-white' : 'text-zinc-500'}`}>{item.label}</Link>
                     ))}
                  </nav>
-                 <div className="pt-8 border-t border-white/5">
+                 <div className="pt-8 border-t border-white/5 space-y-4">
+                    <div className="px-4">
+                       <PWAInstallButton className="w-full justify-center py-3.5 text-xs" />
+                    </div>
                     <button onClick={logout} className="flex items-center gap-4 text-zinc-500 font-bold p-4 hover:text-primary transition-colors"><LogOut className="w-5 h-5 text-primary" />Log Out</button>
                  </div>
               </motion.div>
